@@ -121,6 +121,11 @@ export default function setupRouter(i18n: VueI18nInstance) {
         component: () => import("./views/Forecast.vue"),
         props: true,
       },
+      // solarcontrol
+      {
+        path: "/solar",
+        component: () => import("./views/SolarControl.vue"),
+      },
       {
         path: "/battery",
         component: () => import("./views/Battery.vue"),

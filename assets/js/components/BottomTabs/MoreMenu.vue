@@ -80,6 +80,10 @@
 		>
 			Optimize 🧪
 		</router-link>
+		<!-- solarcontrol -->
+		<router-link class="dropdown-item" to="/solar" active-class="active">
+			{{ $t("solarControl.title") }}
+		</router-link>
 		<!-- the menu opens upwards, the tab that moved here on phones stays closest to the bar -->
 		<router-link
 			v-if="experimental"

@@ -2170,6 +2170,197 @@
     "resetWarning": "There is no dynamic feed-in tariff configured. However, there is still a limit of {limit}. Clean up your configuration?",
     "title": "Feed-in Priority"
   },
+  "solarControl": {
+    "activate": {
+      "confirm": "Activate",
+      "description": "Solar control will switch Always charge on and off by itself. Disable the solar charging automations in Home Assistant first, otherwise both control charging at the same time.",
+      "title": "Activate solar control?"
+    },
+    "history": {
+      "empty": "No events yet.",
+      "energy": "{value} charged",
+      "external": {
+        "disconnect": "Vehicle disconnected, settings reset elsewhere",
+        "resume": "Always charge switched on elsewhere",
+        "start": "Always charge switched on elsewhere",
+        "stop": "Always charge switched off elsewhere"
+      },
+      "pv": "average solar {value}, threshold {threshold}",
+      "resetAlways": "Always charge off",
+      "resetMode": "mode Fast to Smart",
+      "rule": {
+        "endOfDay": "end of day",
+        "manualOff": "switched off manually",
+        "power": "low solar power",
+        "share": "low solar share",
+        "sunLow": "low solar"
+      },
+      "shadow": {
+        "disconnect": "Would reset settings after disconnecting",
+        "resume": "Would resume charging after connecting",
+        "start": "Would start charging",
+        "stop": "Would stop charging"
+      },
+      "solarPercentage": "{value} solar",
+      "surplus": "average surplus {value}, threshold {threshold}",
+      "title": "History",
+      "type": {
+        "disconnect": "Vehicle disconnected, settings reset",
+        "resume": "Charging resumed after connecting",
+        "start": "Charging started",
+        "stop": "Charging stopped"
+      }
+    },
+    "mode": {
+      "active": "Active",
+      "off": "Off",
+      "shadow": "Shadow"
+    },
+    "params": {
+      "baseHomeLoad": {
+        "help": "Added to the stop threshold. Charging stops when average solar stays below the sum.",
+        "label": "Base consumption"
+      },
+      "equals": "equals {value}",
+      "equalsRange": "equals {min} to {max}",
+      "errorRange": "Allowed range: {min} to {max}.",
+      "group": {
+        "general": "General",
+        "simple": "Simple",
+        "smart": "Smart"
+      },
+      "inUse": "in use",
+      "maxStartsPerDay": {
+        "help": "Maximum number of automatic starts per day.",
+        "label": "Starts per day"
+      },
+      "minChargePower": {
+        "help": "Power the vehicle draws at minimum current. Base for all share values.",
+        "label": "Minimum charging power"
+      },
+      "restartCooldownMin": {
+        "help": "Time after a solar stop before charging may start again.",
+        "label": "Pause after stop"
+      },
+      "simpleEndOfDayPower": {
+        "help": "Stop when the sun declines and average solar over 30 minutes stays below this value for 15 minutes.",
+        "label": "End of day power"
+      },
+      "simpleForecastShare": {
+        "help": "Forecast solar until sunset must cover this share of the minimum charging power.",
+        "label": "Forecast coverage"
+      },
+      "simpleShareStop": {
+        "help": "Stop when the sun declines and the solar share of charging stays below this value for 10 minutes.",
+        "label": "Minimum solar share"
+      },
+      "simpleStartShare": {
+        "help": "Average solar over 30 minutes needed to start, as a share of the minimum charging power.",
+        "label": "Start share"
+      },
+      "simpleStopPower": {
+        "help": "Stop when average solar over 30 minutes stays below this value for 10 minutes.",
+        "label": "Stop power"
+      },
+      "socHigh": {
+        "errorOrder": "Must be greater than the low charge level.",
+        "help": "At or above this charge level the high start share applies. In between, the share is interpolated.",
+        "label": "High charge level"
+      },
+      "socLow": {
+        "help": "At or below this vehicle charge level the low start share applies.",
+        "label": "Low charge level"
+      },
+      "startHoldMin": {
+        "help": "Average surplus must stay above the start threshold for this time.",
+        "label": "Start delay"
+      },
+      "startHourFrom": {
+        "help": "Hour from which charging may start.",
+        "label": "Start window from"
+      },
+      "startHourTo": {
+        "errorOrder": "Must be later than the start of the window.",
+        "help": "Hour until which charging may start, exclusive.",
+        "label": "Start window until"
+      },
+      "startShareHighSoc": {
+        "help": "Average surplus needed to start, as a share of the minimum charging power.",
+        "label": "Start share at high charge level"
+      },
+      "startShareLowSoc": {
+        "help": "Average surplus needed to start, as a share of the minimum charging power.",
+        "label": "Start share at low charge level"
+      },
+      "stopHoldMin": {
+        "help": "Average solar must stay below the stop threshold for this time.",
+        "label": "Stop delay"
+      },
+      "stopHysteresis": {
+        "help": "Stop threshold as a share of the start threshold.",
+        "label": "Stop hysteresis"
+      },
+      "title": "Parameters",
+      "unitMinutes": "min"
+    },
+    "reason": {
+      "charging": "Charging.",
+      "chargingStopping": "Charging with low solar, stops in {remaining}.",
+      "chargingValues": "Charging. Average solar {value}, stop threshold {threshold}.",
+      "cooldown": "Pause after the last stop, {remaining} left.",
+      "dailyLimit": "Daily limit reached: {count} of {max} starts.",
+      "disabled": "Solar control is off.",
+      "forecastLow": "Forecast surplus too low: {value}, start threshold {threshold}.",
+      "forecastLowSimple": "Forecast coverage too low: {value}, required {threshold}.",
+      "forecastMissing": "No solar forecast available.",
+      "manualNow": "Charging point is set to Fast.",
+      "manualOff": "Charging point is set to Off.",
+      "manualOnce": "Always charge is on until the end of the session.",
+      "notConnected": "No vehicle connected.",
+      "outsideHours": "Outside the start window from {from} to {to}.",
+      "ready": "Conditions met, starting.",
+      "readyIn": "Conditions met, starts in {remaining}.",
+      "socUnknown": "Vehicle charge level unknown.",
+      "surplusLow": "Surplus too low: {value}, start threshold {threshold}.",
+      "surplusLowSimple": "Solar too low: {value}, start threshold {threshold}.",
+      "warmup": "Collecting measurements, averages are not valid yet."
+    },
+    "status": {
+      "above": "above threshold",
+      "below": "below threshold",
+      "cooldown": "Pause left",
+      "countOf": "{count} of {max}",
+      "forecastCoverage": "Forecast coverage vs required share",
+      "forecastSurplus2h": "Forecast surplus (2 h) vs start threshold",
+      "lastStart": "Last start",
+      "lastStop": "Last stop",
+      "mode": "Mode",
+      "noData": "No status yet.",
+      "notValid": "not valid yet",
+      "pvAvg15Stop": "Average solar (15 min) vs stop threshold",
+      "pvAvg30Start": "Average solar (30 min) vs start threshold",
+      "pvAvg30Stop": "Average solar (30 min) vs stop power",
+      "reset": "Reset counter and pause",
+      "shadowWarning": "Shadow mode: decisions are only recorded. Charging is not controlled.",
+      "soc": "Charge level",
+      "startHold": "Start in",
+      "startsToday": "Starts today",
+      "stopHold": "Stop in",
+      "strategy": "Strategy",
+      "sun": "Solar",
+      "sunLow": "low",
+      "sunOk": "sufficient",
+      "surplusAvg15": "Average surplus (15 min) vs start threshold",
+      "title": "Status",
+      "unknown": "unknown"
+    },
+    "strategy": {
+      "simple": "Simple",
+      "smart": "Smart"
+    },
+    "title": "Solar control",
+    "unavailable": "Solar control is not available."
+  },
   "startupError": {
     "configFile": "Configuration file used:",
     "configuration": "Config",
