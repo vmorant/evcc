@@ -61,6 +61,27 @@ func TestSmartStartAfterHold(t *testing.T) {
 	assert.Equal(t, "2026-06-15", st.StartsDate)
 }
 
+func TestSmartReadyStartingNow(t *testing.T) {
+	s := newSim(t, at(10, 0), sunnyInputs(), shadow)
+	s.run(22 * time.Minute)
+	require.Equal(t, 30.0, *s.c.Status().Reason.Remaining)
+
+	s.step() // 10:22, hold satisfied
+	r := s.c.Status().Reason
+	assert.Equal(t, ReasonReady, r.Code)
+	assert.Nil(t, r.Remaining)
+
+	// connecting would resume right away
+	s = newSim(t, at(10, 0), sunnyInputs(), shadow)
+	s.in.Connected = false
+	s.run(13 * time.Minute)
+	s.in.Connected = true
+	s.step()
+	r = s.c.Status().Reason
+	assert.Equal(t, ReasonReady, r.Code)
+	assert.Nil(t, r.Remaining)
+}
+
 func TestSmartHoldRestartsAfterDip(t *testing.T) {
 	in := sunnyInputs()
 	in.Home = 2200 // surplus 800 W, just above the 776 W threshold

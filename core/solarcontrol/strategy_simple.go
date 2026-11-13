@@ -81,7 +81,7 @@ func (c *Controller) simpleReason(cy *cycle) Reason {
 		return Reason{Code: ReasonForecastLow, Value: new(cov), Threshold: new(c.cfg.SimpleForecastShare)}
 	}
 
-	return Reason{Code: ReasonReady, Remaining: new(0.0)}
+	return Reason{Code: ReasonReady}
 }
 
 // sunFirm is the simple start condition on the pv average

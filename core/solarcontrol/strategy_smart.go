@@ -80,6 +80,10 @@ func (c *Controller) smartReason(cy *cycle) Reason {
 	}
 
 	hold := minutes(c.cfg.StartHoldMin)
+	if cy.connectEdge || c.startHold.satisfied(now, hold) {
+		return Reason{Code: ReasonReady}
+	}
+
 	remaining := c.startHold.remaining(now, hold)
 	if remaining == nil {
 		remaining = new(hold.Seconds())

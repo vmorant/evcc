@@ -17,11 +17,12 @@ const (
 // Controller evaluates the solar charging rules once per control cycle.
 // All methods are safe for concurrent use.
 type Controller struct {
-	mu  sync.Mutex
-	loc *time.Location
-	cfg Config
-	st  State
-	rev uint64
+	mu    sync.Mutex
+	loc   *time.Location
+	clock func() time.Time
+	cfg   Config
+	st    State
+	rev   uint64
 
 	surplus15, pv15, pv30, share15 *window
 
@@ -75,6 +76,7 @@ func New(cfg Config, st State, loc *time.Location) *Controller {
 
 	return &Controller{
 		loc:       loc,
+		clock:     time.Now,
 		cfg:       cfg,
 		st:        st,
 		surplus15: newWindow(15 * time.Minute),
@@ -451,7 +453,7 @@ func (c *Controller) startEvent(cy *cycle, typ EventType) Event {
 	ev := c.newEvent(cy, typ)
 
 	if c.cfg.Strategy == StrategySimple {
-		ev.Surplus = c.pvAverage()
+		ev.PV = c.pvAverage()
 		ev.Threshold = new(cy.simpleStartThreshold)
 		return ev
 	}
@@ -574,7 +576,10 @@ func (c *Controller) Status() Status {
 	s.Mode = c.cfg.Mode
 	s.Strategy = c.cfg.Strategy
 	s.MaxStartsPerDay = c.cfg.MaxStartsPerDay
-	s.StartsToday = c.st.StartsToday
+	// the counter is only rolled over by Evaluate
+	if c.st.StartsDate == c.clock().In(c.loc).Format(dateLayout) {
+		s.StartsToday = c.st.StartsToday
+	}
 	s.LastStartAt = timePtr(c.st.LastStartAt)
 	s.LastStopAt = timePtr(c.st.LastStopAt)
 	s.Events = cloneEvents(c.st.Events)

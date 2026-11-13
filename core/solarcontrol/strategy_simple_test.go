@@ -25,9 +25,36 @@ func TestSimpleStart(t *testing.T) {
 	ev := d.Events[0]
 	assert.Equal(t, EventStart, ev.Type)
 	assert.Equal(t, StrategySimple, ev.Strategy)
-	assert.InDelta(t, 3000, *ev.Surplus, 1e-9)
+	assert.InDelta(t, 3000, *ev.PV, 1e-9)
+	assert.Nil(t, ev.Surplus)
 	assert.InDelta(t, 700, *ev.Threshold, 1e-9)
 	assert.Equal(t, 1, s.c.State().StartsToday)
+}
+
+func TestSimpleStartEventsUsePV(t *testing.T) {
+	s := newSim(t, at(10, 0), sunnyInputs(), func(c *Config) {
+		c.Mode = ModeShadow
+		c.Strategy = StrategySimple
+	})
+	s.run(30 * time.Minute)
+
+	r := s.c.Status().Reason
+	assert.Equal(t, ReasonReady, r.Code)
+	assert.Nil(t, r.Remaining, "starting now")
+
+	s.in.AlwaysCharge = AlwaysChargeOn
+	s.step()
+
+	events := s.events()
+	require.Len(t, events, 2)
+	assert.Equal(t, EventShadow, events[0].Type)
+	assert.Equal(t, EventExternal, events[1].Type)
+	for _, ev := range events {
+		assert.Equal(t, ActionStart, ev.Action)
+		assert.Nil(t, ev.Surplus)
+		require.NotNil(t, ev.PV)
+		assert.InDelta(t, 3000, *ev.PV, 1e-9)
+	}
 }
 
 func TestSimpleStartConditions(t *testing.T) {

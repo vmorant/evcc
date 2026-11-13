@@ -104,9 +104,11 @@ func TestStatusBeforeEvaluate(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Mode = ModeShadow
 	cfg.Strategy = StrategySimple
-	st := State{StartsToday: 1, LastStartAt: at(9, 0)}
+	st := State{StartsDate: "2026-06-15", StartsToday: 1, LastStartAt: at(9, 0)}
 
-	s := New(cfg, st, madrid).Status()
+	c := New(cfg, st, madrid)
+	c.clock = func() time.Time { return at(9, 30) }
+	s := c.Status()
 	assert.Equal(t, ReasonWarmup, s.Reason.Code)
 	assert.Equal(t, ModeShadow, s.Mode)
 	assert.Equal(t, StrategySimple, s.Strategy)
@@ -115,6 +117,22 @@ func TestStatusBeforeEvaluate(t *testing.T) {
 	assert.Equal(t, at(9, 0), *s.LastStartAt)
 	assert.True(t, s.SunOk)
 	assert.NotNil(t, s.Events)
+}
+
+func TestStatusStartsTodayOfOtherDay(t *testing.T) {
+	st := State{StartsDate: "2026-06-14", StartsToday: 2, LastStartAt: time.Date(2026, 6, 14, 12, 0, 0, 0, madrid)}
+	c := New(DefaultConfig(), st, madrid)
+	c.clock = func() time.Time { return at(7, 0) }
+
+	assert.Equal(t, 0, c.Status().StartsToday)
+	assert.Equal(t, 2, c.State().StartsToday, "state untouched until evaluated")
+
+	c.clock = func() time.Time { return time.Date(2026, 6, 14, 23, 0, 0, 0, madrid) }
+	assert.Equal(t, 2, c.Status().StartsToday)
+
+	// the day is taken in the controller's time zone
+	c.clock = func() time.Time { return time.Date(2026, 6, 14, 22, 30, 0, 0, time.UTC) }
+	assert.Equal(t, 0, c.Status().StartsToday)
 }
 
 func TestSetConfig(t *testing.T) {

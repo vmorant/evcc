@@ -100,8 +100,8 @@ type Event struct {
 	Rule     StopRule  `json:"rule,omitempty"`   // stop events: rule that triggered
 
 	// optional details
-	Surplus         *float64 `json:"surplus,omitempty"`         // W, average surplus at start
-	PV              *float64 `json:"pv,omitempty"`              // W, average pv at stop
+	Surplus         *float64 `json:"surplus,omitempty"`         // W, smart: average surplus at start
+	PV              *float64 `json:"pv,omitempty"`              // W, average pv at stop, simple: also at start
 	Threshold       *float64 `json:"threshold,omitempty"`       // W, threshold that was crossed
 	Energy          *float64 `json:"energy,omitempty"`          // kWh charged in session
 	SolarPercentage *float64 `json:"solarPercentage,omitempty"` // % solar share of session
@@ -138,7 +138,7 @@ const (
 //	outsideHours: from, to
 //	surplusLow:   value = average surplus (smart) or pv (simple), threshold = start threshold
 //	forecastLow:  value = forecast surplus W (smart) or coverage % (simple), threshold
-//	ready:        remaining = until start
+//	ready:        remaining = until start, nil when starting now
 type Reason struct {
 	Code      ReasonCode `json:"code"`
 	Value     *float64   `json:"value,omitempty"`

@@ -64,10 +64,11 @@ type timedDecision struct {
 
 // sim drives a controller in 30 s cycles
 type sim struct {
-	t   *testing.T
-	c   *Controller
-	now time.Time
-	in  Inputs
+	t      *testing.T
+	c      *Controller
+	now    time.Time
+	in     Inputs
+	evalAt time.Time // time of the last evaluation, the controller's clock
 
 	// autoApply applies returned actions to the inputs like the loadpoint would
 	autoApply bool
@@ -90,11 +91,15 @@ func newSimState(t *testing.T, start time.Time, in Inputs, mutate func(*Config),
 		mutate(&cfg)
 	}
 	require.NoError(t, cfg.Validate())
-	return &sim{t: t, c: New(cfg, st, madrid), now: start, in: in}
+
+	s := &sim{t: t, c: New(cfg, st, madrid), now: start, in: in, evalAt: start}
+	s.c.clock = func() time.Time { return s.evalAt }
+	return s
 }
 
 // step evaluates one cycle at the current time and advances the clock
 func (s *sim) step() Decision {
+	s.evalAt = s.now
 	d := s.c.Evaluate(s.now, s.in)
 
 	if d.Action != ActionNone || len(d.Events) > 0 {
