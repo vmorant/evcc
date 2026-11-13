@@ -2,12 +2,14 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/core/loadpoint"
 	"github.com/evcc-io/evcc/core/solarcontrol"
+	"github.com/evcc-io/evcc/db/settings"
 	"github.com/evcc-io/evcc/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -165,4 +167,80 @@ func TestSolarControlStatusMarshal(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &res))
 	assert.Contains(t, res, "reason")
 	assert.Equal(t, []any{}, res["events"])
+}
+
+func TestSolarControlPanicDoesNotEscape(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	lp := loadpoint.NewMockAPI(ctrl)
+	lp.EXPECT().GetStatus().DoAndReturn(func() api.ChargeStatus { panic("boom") })
+
+	rt := solarTestRuntime(t, solarcontrol.ModeActive, time.UTC)
+	assert.NotPanics(t, func() {
+		new(Site).runSolarControl(rt, lp, time.Now(), 1000, 300, nil)
+	})
+}
+
+func TestSolarControlFailedWriteNotCounted(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Madrid")
+	require.NoError(t, err)
+	day := time.Date(2026, 6, 1, 0, 0, 0, 0, loc)
+
+	ctrl := gomock.NewController(t)
+	lp := newSolarLoadpoint(ctrl)
+	lp.status = api.StatusB
+
+	var attempts int
+	lp.EXPECT().SetAlwaysCharge(api.AlwaysChargeOn).DoAndReturn(func(api.AlwaysCharge) error {
+		attempts++
+		return errors.New("not supported")
+	}).AnyTimes()
+
+	site := new(Site)
+	rt := solarTestRuntime(t, solarcontrol.ModeActive, loc)
+	fc := sunnyForecast(day)
+
+	now := day.Add(9 * time.Hour)
+	for range 120 { // 1h of sun, start due after ~22 min
+		site.runSolarControl(rt, lp, now, 4000, 300, fc)
+		now = now.Add(30 * time.Second)
+	}
+
+	status := rt.ctrl.Status()
+	assert.Positive(t, attempts)
+	assert.Less(t, attempts, 10, "failed start must back off")
+	assert.Zero(t, status.StartsToday, "failed start must not count")
+	assert.Empty(t, status.Events, "failed start must not be recorded")
+}
+
+func TestSolarControlPersistence(t *testing.T) {
+	t.Cleanup(func() {
+		_ = settings.Delete(solarControlConfigKey)
+		_ = settings.Delete(solarControlStateKey)
+	})
+
+	rt := solarTestRuntime(t, solarcontrol.ModeShadow, time.UTC)
+	cfg := rt.ctrl.Config()
+	cfg.MinChargePower = 1600
+	require.NoError(t, rt.ctrl.SetConfig(cfg))
+
+	// shadow counts external always charge transitions
+	ctrl := gomock.NewController(t)
+	lp := newSolarLoadpoint(ctrl)
+	lp.status = api.StatusB
+	now := time.Now()
+	new(Site).runSolarControl(rt, lp, now, 1000, 300, nil)
+	lp.alwaysCharge = api.AlwaysChargeOn
+	new(Site).runSolarControl(rt, lp, now.Add(30*time.Second), 1000, 300, nil)
+	require.Equal(t, 1, rt.ctrl.Status().StartsToday)
+
+	rt.persist(true)
+
+	loaded := loadSolarControl(util.NewLogger("test"))
+	assert.Equal(t, rt.ctrl.Config(), loaded.Config())
+
+	st := loaded.State()
+	assert.Equal(t, 1, st.StartsToday)
+	assert.False(t, st.LastStartAt.IsZero())
+	require.Len(t, st.Events, 1)
+	assert.Equal(t, solarcontrol.EventExternal, st.Events[0].Type)
 }

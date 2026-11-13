@@ -125,3 +125,16 @@ func TestSolarControlReset(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, 1, site.resets)
 }
+
+func TestSolarControlWritesWithSession(t *testing.T) {
+	site := &fakeSolarSite{cfg: solarcontrol.DefaultConfig()}
+	router := solarControlRouter(site, auth.Enabled)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/solarcontrol/config", strings.NewReader(`{"mode":"shadow"}`))
+	req.AddCookie(&http.Cookie{Name: authCookieName, Value: "token"}) // fakeAuth accepts any jwt
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, solarcontrol.ModeShadow, site.cfg.Mode)
+}

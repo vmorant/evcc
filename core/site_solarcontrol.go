@@ -28,6 +28,7 @@ const (
 // solarControlRuntime lives outside the Site struct to keep the upstream diff small
 type solarControlRuntime struct {
 	once     sync.Once
+	cfgMu    sync.Mutex // serializes config read-modify-write
 	mu       sync.Mutex // serializes persistence
 	ctrl     *solarcontrol.Controller
 	log      *util.Logger
@@ -42,8 +43,17 @@ func (site *Site) solarControl() *solarControlRuntime {
 
 	rt.once.Do(func() {
 		rt.log = util.NewLogger("solarcontrol")
+
+		// a broken stored config must never stop the control loop or the api
+		defer func() {
+			if r := recover(); r != nil {
+				rt.log.ERROR.Printf("init: %v, using defaults", r)
+				rt.ctrl = solarcontrol.New(solarcontrol.DefaultConfig(), solarcontrol.State{}, nil)
+			}
+			rt.savedRev = rt.ctrl.Revision()
+		}()
+
 		rt.ctrl = loadSolarControl(rt.log)
-		rt.savedRev = rt.ctrl.Revision()
 	})
 
 	return rt
@@ -75,8 +85,9 @@ func loadSolarControl(log *util.Logger) *solarcontrol.Controller {
 	return solarcontrol.New(cfg, st, nil)
 }
 
-// persist stores config and state when the controller changed
-func (rt *solarControlRuntime) persist() {
+// persist stores config and state when the controller changed. flush writes the
+// database right away instead of waiting for the periodic settings flush.
+func (rt *solarControlRuntime) persist(flush bool) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 
@@ -95,6 +106,12 @@ func (rt *solarControlRuntime) persist() {
 	}
 
 	rt.savedRev = rev
+
+	if flush {
+		if err := settings.Persist(); err != nil {
+			rt.log.ERROR.Printf("persist: %v", err)
+		}
+	}
 }
 
 // solarControlStatus publishes as a single json value, not as a topic tree
@@ -113,14 +130,6 @@ func (site *Site) publishSolarControl(rt *solarControlRuntime) {
 // updateSolarControl runs the solar charging rules once per control cycle.
 // totalChargePower is the charge power of all loadpoints as used for the home power.
 func (site *Site) updateSolarControl(totalChargePower float64) {
-	rt := site.solarControl()
-
-	defer func() {
-		if r := recover(); r != nil {
-			rt.log.ERROR.Printf("panic: %v", r)
-		}
-	}()
-
 	if len(site.loadpoints) == 0 {
 		return
 	}
@@ -132,27 +141,43 @@ func (site *Site) updateSolarControl(totalChargePower float64) {
 
 	fc := site.solarControlForecast(time.Now())
 
-	site.runSolarControl(rt, site.loadpoints[0], time.Now(), pv, home, fc)
+	site.runSolarControl(site.solarControl(), site.loadpoints[0], time.Now(), pv, home, fc)
 }
+
+var errSolarControlInactive = errors.New("mode changed, not applied")
 
 // runSolarControl evaluates the controller against a loadpoint and applies its decision
 func (site *Site) runSolarControl(rt *solarControlRuntime, lp loadpoint.API, now time.Time, pv, home float64, fc *solarcontrol.Forecast) {
+	defer func() {
+		if r := recover(); r != nil {
+			rt.log.ERROR.Printf("panic: %v", r)
+		}
+	}()
+
 	in := solarControlInputs(lp, pv, home, fc)
 	d := rt.ctrl.Evaluate(now, in)
 
-	for _, ev := range d.Events {
-		rt.log.INFO.Println(describeSolarEvent(ev))
-	}
+	if d.Action != solarcontrol.ActionNone {
+		// the mode may have changed since evaluating
+		err := errSolarControlInactive
+		if rt.ctrl.Config().Mode == solarcontrol.ModeActive {
+			err = applySolarDecision(lp, d)
+		}
+		rt.ctrl.Applied(now, d, err)
 
-	if rt.ctrl.Config().Mode == solarcontrol.ModeActive {
-		if err := applySolarDecision(lp, d); err != nil {
+		if err != nil {
 			rt.log.ERROR.Printf("%s: %v", d.Action, err)
+			d.Events = nil
 		} else {
 			site.notifySolarControl(d)
 		}
 	}
 
-	rt.persist()
+	for _, ev := range d.Events {
+		rt.log.INFO.Println(describeSolarEvent(ev))
+	}
+
+	rt.persist(false)
 	site.publishSolarControl(rt)
 }
 
@@ -330,12 +355,15 @@ func (site *Site) SolarControl() (solarcontrol.Config, solarcontrol.Status) {
 func (site *Site) SetSolarControlConfig(b []byte) error {
 	rt := site.solarControl()
 
+	rt.cfgMu.Lock()
+	defer rt.cfgMu.Unlock()
+
 	cfg := rt.ctrl.Config()
 
 	dec := json.NewDecoder(strings.NewReader(string(b)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&cfg); err != nil {
-		return &solarcontrol.ValidationError{Field: unknownJsonField(err), Msg: err.Error()}
+		return &solarcontrol.ValidationError{Field: unknownJsonField(err), Code: "invalid", Msg: err.Error()}
 	}
 
 	prev := rt.ctrl.Config().Mode
@@ -347,7 +375,7 @@ func (site *Site) SetSolarControlConfig(b []byte) error {
 		rt.log.INFO.Printf("mode: %s -> %s", prev, cfg.Mode)
 	}
 
-	rt.persist()
+	rt.persist(true)
 	site.publishSolarControl(rt)
 
 	return nil
@@ -369,6 +397,6 @@ func (site *Site) ResetSolarControl() {
 	rt := site.solarControl()
 	rt.ctrl.Reset(time.Now())
 	rt.log.INFO.Println("reset counter and cooldown")
-	rt.persist()
+	rt.persist(true)
 	site.publishSolarControl(rt)
 }
