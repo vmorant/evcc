@@ -1,0 +1,28 @@
+interval: 0.1s
+
+site:
+  title: Solar Control
+  meters:
+    grid: grid
+    pv: pv
+
+meters:
+  - name: grid
+    type: template
+    template: demo-meter
+    power: -1500
+  - name: pv
+    type: template
+    template: demo-meter
+    power: 2000
+
+loadpoints:
+  - title: Carport
+    charger: charger
+    mode: smart
+
+chargers:
+  - name: charger
+    type: template
+    template: demo-charger
+    status: A
