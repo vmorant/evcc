@@ -26,13 +26,18 @@ func (c *Controller) countStop(now time.Time) {
 	c.rev++
 }
 
-// addEvent prepends ev to the history
+// addEvent records ev and returns it with the decision
 func (c *Controller) addEvent(ev Event, d *Decision) {
-	c.st.Events = append([]Event{ev}, c.st.Events...)
+	c.record(ev)
+	d.Events = append(d.Events, cloneEvent(ev))
+}
+
+// record prepends a copy of ev to the history
+func (c *Controller) record(ev Event) {
+	c.st.Events = append([]Event{cloneEvent(ev)}, c.st.Events...)
 	if len(c.st.Events) > MaxEvents {
 		c.st.Events = c.st.Events[:MaxEvents]
 	}
-	d.Events = append(d.Events, cloneEvent(ev))
 	c.rev++
 }
 

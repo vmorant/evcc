@@ -53,7 +53,9 @@ const (
 )
 
 // Decision is the result of one evaluation. At most one action per cycle.
-// Only returned with an action in ModeActive.
+// Only returned with an action in ModeActive. The caller applies the action
+// and then reports the outcome with Controller.Applied, which counts it and
+// records its events.
 type Decision struct {
 	Action Action
 
@@ -61,7 +63,8 @@ type Decision struct {
 	ResetMode         bool // set loadpoint mode now -> smart
 	ResetAlwaysCharge bool // set always charge on -> off
 
-	// Events recorded during this evaluation, for logging and notifications
+	// Events for logging and notifications. With an action this is the pending
+	// event, recorded in the history only by a successful Applied.
 	Events []Event
 }
 

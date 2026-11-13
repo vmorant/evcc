@@ -2,6 +2,7 @@ package solarcontrol
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"math/rand/v2"
 	"testing"
@@ -421,6 +422,7 @@ func TestDisconnect(t *testing.T) {
 		s.run(time.Hour)
 		assert.Len(t, s.actions(), 1)
 		assert.True(t, s.c.State().LastStopAt.IsZero(), "disconnect is no solar stop")
+		assert.Len(t, eventsOf(s.c.State().Events, EventDisconnect), 1)
 	})
 
 	t.Run("mode now only", func(t *testing.T) {
@@ -500,6 +502,11 @@ func TestOddInputsNeverPanic(t *testing.T) {
 				}
 
 				d := c.Evaluate(now, in)
+				if r.IntN(3) > 0 {
+					c.Applied(now, d, nil)
+				} else {
+					c.Applied(now, d, errors.New("write failed"))
+				}
 
 				if mode != ModeActive {
 					require.Equal(t, ActionNone, d.Action)
@@ -531,4 +538,116 @@ func TestOddInputsNeverPanic(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestApplied(t *testing.T) {
+	errWrite := errors.New("write failed")
+
+	t.Run("success counts and records", func(t *testing.T) {
+		s := newSim(t, at(10, 0), sunnyInputs(), nil)
+		s.run(22 * time.Minute)
+
+		d := s.c.Evaluate(s.now, s.in)
+		require.Equal(t, ActionStart, d.Action)
+		require.Len(t, d.Events, 1)
+		st := s.c.State()
+		assert.Equal(t, 0, st.StartsToday)
+		assert.True(t, st.LastStartAt.IsZero())
+		assert.Empty(t, st.Events)
+
+		rev := s.c.Revision()
+		s.c.Applied(s.now, d, nil)
+		assert.Greater(t, s.c.Revision(), rev)
+		st = s.c.State()
+		assert.Equal(t, 1, st.StartsToday)
+		assert.Equal(t, s.now, st.LastStartAt)
+		assert.Equal(t, d.Events, st.Events)
+		assert.Equal(t, 1, s.c.Status().StartsToday)
+	})
+
+	t.Run("failure backs off", func(t *testing.T) {
+		s := newSim(t, at(10, 0), sunnyInputs(), nil)
+		s.applyErr = errWrite
+
+		res, ok := s.runUntilAction(time.Hour)
+		require.True(t, ok)
+		assert.Equal(t, at(10, 22), res.at)
+		rev := s.c.Revision()
+
+		res, ok = s.runUntilAction(time.Hour)
+		require.True(t, ok)
+		assert.Equal(t, at(10, 27), res.at)
+
+		st := s.c.State()
+		assert.Equal(t, 0, st.StartsToday)
+		assert.True(t, st.LastStartAt.IsZero())
+		assert.Empty(t, st.Events)
+		assert.Equal(t, rev, s.c.Revision())
+
+		s.applyErr = nil
+		res, ok = s.runUntilAction(time.Hour)
+		require.True(t, ok)
+		assert.Equal(t, at(10, 32), res.at)
+		assert.Equal(t, 1, s.c.State().StartsToday)
+		assert.Len(t, s.c.State().Events, 1)
+	})
+
+	t.Run("failed stop does not flood history", func(t *testing.T) {
+		in := chargingInputs()
+		in.PV = 500
+		s := newSim(t, at(15, 0), in, nil)
+		s.applyErr = errWrite
+		s.run(time.Hour)
+
+		var times []time.Time
+		for _, d := range s.actions() {
+			assert.Equal(t, ActionStop, d.Action)
+			times = append(times, d.at)
+		}
+		assert.Equal(t, []time.Time{at(15, 27), at(15, 32), at(15, 37), at(15, 42), at(15, 47), at(15, 52), at(15, 57)}, times)
+
+		st := s.c.State()
+		assert.Empty(t, st.Events)
+		assert.True(t, st.LastStopAt.IsZero())
+	})
+
+	t.Run("backoff only for the failed action", func(t *testing.T) {
+		in := chargingInputs()
+		in.LpMode = LpModeNow
+		in.PV = 500
+		s := newSim(t, at(15, 0), in, nil)
+		s.applyErr = errWrite
+		_, ok := s.runUntilAction(time.Hour)
+		require.True(t, ok)
+
+		s.applyErr = nil
+		s.in.Connected = false
+		assert.Equal(t, ActionDisconnect, s.step().Action)
+	})
+
+	t.Run("set config and reset clear backoff", func(t *testing.T) {
+		for _, clear := range []func(*sim){
+			func(s *sim) { require.NoError(t, s.c.SetConfig(s.c.Config())) },
+			func(s *sim) { s.c.Reset(s.now) },
+		} {
+			s := newSim(t, at(10, 0), sunnyInputs(), nil)
+			s.applyErr = errWrite
+			_, ok := s.runUntilAction(time.Hour)
+			require.True(t, ok)
+
+			clear(s)
+			assert.Equal(t, ActionStart, s.step().Action)
+		}
+	})
+
+	t.Run("without action", func(t *testing.T) {
+		s := newSim(t, at(10, 0), sunnyInputs(), nil)
+		s.step()
+		rev := s.c.Revision()
+
+		s.c.Applied(s.now, Decision{Events: []Event{{Type: EventStart}}}, nil)
+		s.c.Applied(s.now, Decision{}, errWrite)
+		assert.Equal(t, rev, s.c.Revision())
+		assert.Empty(t, s.c.State().Events)
+	})
 }

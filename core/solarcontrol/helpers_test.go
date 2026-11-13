@@ -72,6 +72,9 @@ type sim struct {
 	// autoApply applies returned actions to the inputs like the loadpoint would
 	autoApply bool
 
+	// applyErr is reported to Applied for every returned action
+	applyErr error
+
 	log []timedDecision // cycles that returned an action or events
 }
 
@@ -98,7 +101,11 @@ func (s *sim) step() Decision {
 		s.log = append(s.log, timedDecision{s.now, d})
 	}
 
-	if s.autoApply {
+	if d.Action != ActionNone {
+		s.c.Applied(s.now, d, s.applyErr)
+	}
+
+	if s.autoApply && s.applyErr == nil {
 		switch d.Action {
 		case ActionStart, ActionResume:
 			s.in.AlwaysCharge = AlwaysChargeOn

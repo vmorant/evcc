@@ -6,8 +6,13 @@ import (
 	"time"
 )
 
-// minSharePower is the charge power below which no solar share sample is taken
-const minSharePower = 200
+const (
+	// minSharePower is the charge power below which no solar share sample is taken
+	minSharePower = 200
+
+	// applyBackoff is how long a failed action is not proposed again
+	applyBackoff = 5 * time.Minute
+)
 
 // Controller evaluates the solar charging rules once per control cycle.
 // All methods are safe for concurrent use.
@@ -41,6 +46,10 @@ type Controller struct {
 
 	// shadow: action that would have been taken in the previous cycle
 	lastWould Action
+
+	// active: last action whose write failed, see Applied
+	failedAction Action
+	failedAt     time.Time
 
 	evaluated bool
 	lastNow   time.Time
@@ -109,7 +118,8 @@ type proposal struct {
 }
 
 // Evaluate runs one cycle and returns what the caller must apply.
-// Returns an action only in ModeActive.
+// Returns an action only in ModeActive. An action is not counted until the
+// caller confirms it with Applied.
 func (c *Controller) Evaluate(now time.Time, in Inputs) Decision {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -133,8 +143,13 @@ func (c *Controller) Evaluate(now time.Time, in Inputs) Decision {
 	switch c.cfg.Mode {
 	case ModeActive:
 		c.lastWould = ActionNone
-		if p := c.propose(&cy); p.action != ActionNone {
-			c.apply(now, p, &d)
+		if p := c.propose(&cy); p.action != ActionNone && !c.backingOff(now, p.action) {
+			d = Decision{
+				Action:            p.action,
+				ResetMode:         p.resetMode,
+				ResetAlwaysCharge: p.resetAlways,
+				Events:            []Event{cloneEvent(p.event)},
+			}
 		}
 
 	case ModeShadow:
@@ -334,18 +349,41 @@ func (c *Controller) proposeDisconnect(cy *cycle) proposal {
 	return p
 }
 
-func (c *Controller) apply(now time.Time, p proposal, d *Decision) {
-	switch p.action {
+// Applied reports the outcome of applying a Decision returned by Evaluate.
+// Without error the action counts for the daily limit and cooldown and its
+// events are recorded. With error nothing is counted or recorded and the same
+// action is not proposed again for 5 minutes. Decisions without an action are ignored.
+func (c *Controller) Applied(now time.Time, d Decision, err error) {
+	if d.Action == ActionNone {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err != nil {
+		c.failedAction = d.Action
+		c.failedAt = now
+		return
+	}
+	c.failedAction = ActionNone
+
+	c.rollover(now)
+	switch d.Action {
 	case ActionStart, ActionResume:
 		c.countStart(now)
 	case ActionStop:
 		c.countStop(now)
 	}
+	for _, ev := range d.Events {
+		c.record(ev)
+	}
 
-	d.Action = p.action
-	d.ResetMode = p.resetMode
-	d.ResetAlwaysCharge = p.resetAlways
-	c.addEvent(p.event, d)
+	c.refresh()
+}
+
+func (c *Controller) backingOff(now time.Time, a Action) bool {
+	return a == c.failedAction && now.Sub(c.failedAt) < applyBackoff
 }
 
 // external records always charge changes made by someone else. Only used in
@@ -563,6 +601,7 @@ func (c *Controller) SetConfig(cfg Config) error {
 	if cfg.Mode != c.cfg.Mode || cfg.Strategy != c.cfg.Strategy {
 		c.lastWould = ActionNone
 	}
+	c.failedAction = ActionNone
 	c.cfg = cfg
 	c.rev++
 	c.refresh()
@@ -593,6 +632,7 @@ func (c *Controller) Reset(now time.Time) {
 	c.st.StartsToday = 0
 	c.st.StartsDate = now.In(c.loc).Format(dateLayout)
 	c.st.LastStopAt = time.Time{}
+	c.failedAction = ActionNone
 	c.rev++
 	c.refresh()
 }
