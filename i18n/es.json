@@ -2200,6 +2200,41 @@
       "description": "El control solar activará y desactivará Cargar siempre por sí mismo. Desactiva antes las automatizaciones de carga solar de Home Assistant; si no, ambos controlarán la carga a la vez.",
       "title": "¿Activar el control solar?"
     },
+    "check": {
+      "left": "quedan {remaining}",
+      "missing": "faltan {value}",
+      "notValid": "aún no válido",
+      "start": {
+        "connected": "Vehículo conectado",
+        "cooldown": "Pausa tras parar",
+        "dailyLimit": "Arranques hoy",
+        "forecast": "Excedente previsto (2 h)",
+        "forecastSimple": "Cobertura prevista hasta el ocaso",
+        "hold": "Estable durante {min} min",
+        "hours": "Franja de arranque",
+        "mode": "Punto de carga en modo Inteligente",
+        "sun": "Solar media (30 min)",
+        "surplus": "Excedente medio (15 min)"
+      },
+      "state": {
+        "fail": "no cumplida",
+        "ok": "cumplida",
+        "unknown": "desconocida"
+      },
+      "stop": {
+        "endOfDay": "Solar media (30 min) por encima de la potencia de fin del día",
+        "power": "Solar media (30 min) por encima de la potencia de parada",
+        "share": "Porcentaje solar por encima del mínimo",
+        "stopHold": "Sin parada pendiente",
+        "sun": "Sol suficiente (media de 15 min)",
+        "sunDeclining": "El sol aún no baja"
+      },
+      "stopsIn": "para en {remaining}",
+      "title": {
+        "start": "Condiciones de arranque",
+        "stop": "Condiciones para seguir cargando"
+      }
+    },
     "history": {
       "empty": "Aún no hay eventos.",
       "energy": "{value} cargados",
@@ -2234,6 +2269,26 @@
         "start": "Carga iniciada",
         "stop": "Carga detenida"
       }
+    },
+    "howItWorks": {
+      "simple": {
+        "endOfDay": "Solar media (30 min) por debajo de {value} durante 15 min mientras el sol baja.",
+        "power": "Solar media (30 min) por debajo de {value} durante 10 min.",
+        "share": "Porcentaje solar de la carga por debajo de {value} durante 10 min mientras el sol baja.",
+        "start": "Arranque (activa Cargar siempre): solar media (30 min) por encima de {start} y la previsión hasta el ocaso cubre el {coverage} de la potencia mínima de carga, pausa tras parar cumplida.",
+        "stop": "Para en cuanto se cumple una de estas reglas.",
+        "summary": "Arranca con solar media suficiente, para con poca solar."
+      },
+      "smart": {
+        "forecast": "El excedente previsto (2 h) es la media de la previsión solar de esta hora y la siguiente menos el consumo actual. Para arrancar hacen falta ambos, excedente ahora y excedente por delante, así un claro pasajero entre las nubes no inicia la carga.",
+        "grid": "Cargar siempre carga como mínimo a la potencia mínima de carga ({minPower}). Con {start} de excedente eso es aproximadamente un {share} solar, el resto viene de la red.",
+        "now": "Ahora (nivel de carga {soc}): arranque con {start} de excedente, parada por debajo de {stop} de solar, histéresis {hysteresis}, pausa {cooldown} min, hasta {max} arranques al día.",
+        "start": "Arranque (activa Cargar siempre): excedente medio (solar menos consumo, 15 min) de al menos {start} durante {hold} min y excedente previsto (2 h) de al menos {start}, pausa tras parar cumplida, menos de {max} arranques hoy, entre las {from} y las {to}.",
+        "stop": "Parada: solar media (15 min) por debajo de {stop} durante {stopHold} min, umbral de parada = umbral de arranque × histéresis + consumo base. Mira la producción, no el excedente: el horno o la placa no paran la carga, solo las nubes o el ocaso.",
+        "summary": "Arranca con excedente, para por falta de sol.",
+        "threshold": "El umbral de arranque depende del nivel de carga: potencia mínima de carga × porcentaje de arranque, interpolado entre el nivel de carga bajo y el alto. Con más nivel de carga hace falta más excedente."
+      },
+      "title": "Cómo funciona"
     },
     "mode": {
       "active": "Activo",
@@ -2292,6 +2347,7 @@
         "label": "Nivel de carga alto"
       },
       "socLow": {
+        "errorOrder": "Debe ser menor que el nivel de carga alto.",
         "help": "Con este nivel de carga del vehículo o menos se aplica el porcentaje de arranque bajo.",
         "label": "Nivel de carga bajo"
       },
@@ -2300,6 +2356,7 @@
         "label": "Espera para arrancar"
       },
       "startHourFrom": {
+        "errorOrder": "Debe ser anterior al final de la franja.",
         "help": "Hora a partir de la cual puede arrancar la carga.",
         "label": "Franja de arranque desde"
       },
@@ -2342,48 +2399,52 @@
       "manualOnce": "Cargar siempre está activado hasta el final de la sesión.",
       "notConnected": "No hay ningún vehículo conectado.",
       "outsideHours": "Fuera de la franja de arranque de {from} a {to}.",
-      "ready": "Condiciones cumplidas, arrancando.",
       "readyIn": "Condiciones cumplidas, arranca en {remaining}.",
+      "readyNow": "Condiciones cumplidas, arrancando ahora.",
       "socUnknown": "Nivel de carga del vehículo desconocido.",
       "surplusLow": "Excedente insuficiente: {value}, umbral de arranque {threshold}.",
       "surplusLowSimple": "Solar insuficiente: {value}, umbral de arranque {threshold}.",
       "warmup": "Recogiendo mediciones, las medias aún no son válidas."
     },
     "status": {
-      "above": "por encima del umbral",
-      "below": "por debajo del umbral",
-      "cooldown": "Pausa restante",
+      "chargePower": "Potencia de carga",
       "countOf": "{count} de {max}",
-      "forecastCoverage": "Cobertura prevista frente a la necesaria",
-      "forecastSurplus2h": "Excedente previsto (2 h) frente al umbral de arranque",
-      "lastStart": "Último arranque",
-      "lastStop": "Última parada",
+      "forecastRestOfDay": "Previsión solar resto del día",
+      "forecastWindow": "Franja de arranque prevista",
+      "homeNow": "Consumo ahora",
       "mode": "Modo",
       "noData": "Aún no hay estado.",
-      "notValid": "aún no válido",
-      "pvAvg15Stop": "Solar media (15 min) frente al umbral de parada",
-      "pvAvg30Start": "Solar media (30 min) frente al umbral de arranque",
-      "pvAvg30Stop": "Solar media (30 min) frente a la potencia de parada",
+      "pvNow": "Solar ahora",
       "reset": "Reiniciar contador y pausa",
+      "session": "Sesión",
       "shadowWarning": "Modo simulación: las decisiones solo se registran. La carga no se controla.",
       "soc": "Nivel de carga",
-      "startHold": "Arranque en",
-      "startsToday": "Arranques hoy",
-      "stopHold": "Parada en",
       "strategy": "Estrategia",
-      "sun": "Solar",
-      "sunLow": "baja",
-      "sunOk": "suficiente",
-      "surplusAvg15": "Excedente medio (15 min) frente al umbral de arranque",
-      "title": "Estado",
-      "unknown": "desconocido"
+      "sunEnd": "Sol hasta",
+      "surplusNow": "Excedente ahora",
+      "title": "Estado"
     },
     "strategy": {
       "simple": "Simple",
       "smart": "Inteligente"
     },
     "title": "Control solar",
-    "unavailable": "El control solar no está disponible."
+    "unavailable": "El control solar no está disponible.",
+    "verdict": {
+      "chargingSimple": "Cargando, para si la solar media se queda por debajo de {stop} durante {min} min.",
+      "chargingSmart": "Cargando, para si la solar se queda por debajo de {stop} durante {min} min.",
+      "connect": "Arrancará cuando se conecte un vehículo.",
+      "cooldown": "Podrá volver a arrancar en {remaining} como pronto.",
+      "dailyLimit": "Hoy no habrá más arranques.",
+      "forecastFrom": "Previsión: sol suficiente a partir de las {time}.",
+      "forecastNone": "La previsión no alcanza el umbral en lo que queda de día.",
+      "forecastUntil": "Previsión: sol suficiente hasta las {time}.",
+      "hold": "Arranca en unos {remaining} si el excedente se mantiene.",
+      "hours": "Próximo arranque posible a las {from}.",
+      "mode": "No arrancará hasta que el punto de carga vuelva al modo Inteligente.",
+      "stopping": "Para en {remaining} si la solar no se recupera.",
+      "unknown": "Esperando medias válidas."
+    }
   },
   "startupError": {
     "configFile": "Archivo de configuración utilizado:",

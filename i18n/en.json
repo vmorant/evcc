@@ -2176,6 +2176,41 @@
       "description": "Solar control will switch Always charge on and off by itself. Disable the solar charging automations in Home Assistant first, otherwise both control charging at the same time.",
       "title": "Activate solar control?"
     },
+    "check": {
+      "left": "{remaining} left",
+      "missing": "{value} missing",
+      "notValid": "not valid yet",
+      "start": {
+        "connected": "Vehicle connected",
+        "cooldown": "Pause after stop",
+        "dailyLimit": "Starts today",
+        "forecast": "Forecast surplus (2 h)",
+        "forecastSimple": "Forecast coverage until sunset",
+        "hold": "Stable for {min} min",
+        "hours": "Start window",
+        "mode": "Charging point in Smart mode",
+        "sun": "Average solar (30 min)",
+        "surplus": "Average surplus (15 min)"
+      },
+      "state": {
+        "fail": "not met",
+        "ok": "met",
+        "unknown": "unknown"
+      },
+      "stop": {
+        "endOfDay": "Average solar (30 min) above end of day power",
+        "power": "Average solar (30 min) above stop power",
+        "share": "Solar share above minimum",
+        "stopHold": "No stop pending",
+        "sun": "Enough sun (15 min average)",
+        "sunDeclining": "Sun not declining yet"
+      },
+      "stopsIn": "stops in {remaining}",
+      "title": {
+        "start": "Start conditions",
+        "stop": "Conditions to keep charging"
+      }
+    },
     "history": {
       "empty": "No events yet.",
       "energy": "{value} charged",
@@ -2210,6 +2245,26 @@
         "start": "Charging started",
         "stop": "Charging stopped"
       }
+    },
+    "howItWorks": {
+      "simple": {
+        "endOfDay": "Average solar (30 min) below {value} for 15 min while the sun declines.",
+        "power": "Average solar (30 min) below {value} for 10 min.",
+        "share": "Solar share of charging below {value} for 10 min while the sun declines.",
+        "start": "Start (switches Always charge on): average solar (30 min) above {start} and the forecast until sunset covers {coverage} of the minimum charging power, pause after stop over.",
+        "stop": "Stops as soon as one of these rules applies.",
+        "summary": "Starts on average solar, stops on low solar."
+      },
+      "smart": {
+        "forecast": "Forecast surplus (2 h) is the average solar forecast of this hour and the next minus the current consumption. Starting needs both, surplus now and surplus ahead, so a short gap in the clouds doesn't start charging.",
+        "grid": "Always charge charges at least at the minimum charging power ({minPower}). With {start} surplus that is about {share} solar, the rest comes from the grid.",
+        "now": "Now (charge level {soc}): start at {start} surplus, stop below {stop} solar, hysteresis {hysteresis}, pause {cooldown} min, up to {max} starts per day.",
+        "start": "Start (switches Always charge on): average surplus (solar minus consumption, 15 min) at least {start} for {hold} min and forecast surplus (2 h) at least {start}, pause after stop over, fewer than {max} starts today, between {from} and {to}.",
+        "stop": "Stop: average solar (15 min) below {stop} for {stopHold} min, stop threshold = start threshold × hysteresis + base consumption. It looks at production, not surplus: the oven or the hob don't stop charging, only clouds or sunset.",
+        "summary": "Starts on surplus, stops on lack of sun.",
+        "threshold": "The start threshold depends on the charge level: minimum charging power × start share, interpolated between low and high charge level. A higher charge level needs more surplus."
+      },
+      "title": "How it works"
     },
     "mode": {
       "active": "Active",
@@ -2268,6 +2323,7 @@
         "label": "High charge level"
       },
       "socLow": {
+        "errorOrder": "Must be lower than the high charge level.",
         "help": "At or below this vehicle charge level the low start share applies.",
         "label": "Low charge level"
       },
@@ -2276,6 +2332,7 @@
         "label": "Start delay"
       },
       "startHourFrom": {
+        "errorOrder": "Must be earlier than the end of the window.",
         "help": "Hour from which charging may start.",
         "label": "Start window from"
       },
@@ -2318,48 +2375,52 @@
       "manualOnce": "Always charge is on until the end of the session.",
       "notConnected": "No vehicle connected.",
       "outsideHours": "Outside the start window from {from} to {to}.",
-      "ready": "Conditions met, starting.",
       "readyIn": "Conditions met, starts in {remaining}.",
+      "readyNow": "Conditions met, starting now.",
       "socUnknown": "Vehicle charge level unknown.",
       "surplusLow": "Surplus too low: {value}, start threshold {threshold}.",
       "surplusLowSimple": "Solar too low: {value}, start threshold {threshold}.",
       "warmup": "Collecting measurements, averages are not valid yet."
     },
     "status": {
-      "above": "above threshold",
-      "below": "below threshold",
-      "cooldown": "Pause left",
+      "chargePower": "Charging power",
       "countOf": "{count} of {max}",
-      "forecastCoverage": "Forecast coverage vs required share",
-      "forecastSurplus2h": "Forecast surplus (2 h) vs start threshold",
-      "lastStart": "Last start",
-      "lastStop": "Last stop",
+      "forecastRestOfDay": "Solar forecast rest of today",
+      "forecastWindow": "Forecast start window",
+      "homeNow": "Consumption now",
       "mode": "Mode",
       "noData": "No status yet.",
-      "notValid": "not valid yet",
-      "pvAvg15Stop": "Average solar (15 min) vs stop threshold",
-      "pvAvg30Start": "Average solar (30 min) vs start threshold",
-      "pvAvg30Stop": "Average solar (30 min) vs stop power",
+      "pvNow": "Solar now",
       "reset": "Reset counter and pause",
+      "session": "Session",
       "shadowWarning": "Shadow mode: decisions are only recorded. Charging is not controlled.",
       "soc": "Charge level",
-      "startHold": "Start in",
-      "startsToday": "Starts today",
-      "stopHold": "Stop in",
       "strategy": "Strategy",
-      "sun": "Solar",
-      "sunLow": "low",
-      "sunOk": "sufficient",
-      "surplusAvg15": "Average surplus (15 min) vs start threshold",
-      "title": "Status",
-      "unknown": "unknown"
+      "sunEnd": "Sun until",
+      "surplusNow": "Surplus now",
+      "title": "Status"
     },
     "strategy": {
       "simple": "Simple",
       "smart": "Smart"
     },
     "title": "Solar control",
-    "unavailable": "Solar control is not available."
+    "unavailable": "Solar control is not available.",
+    "verdict": {
+      "chargingSimple": "Charging, stops if average solar stays below {stop} for {min} min.",
+      "chargingSmart": "Charging, stops if solar stays below {stop} for {min} min.",
+      "connect": "Starts once a vehicle is connected.",
+      "cooldown": "Can start again in {remaining} at the earliest.",
+      "dailyLimit": "No more starts today.",
+      "forecastFrom": "Forecast: enough sun from {time}.",
+      "forecastNone": "Forecast doesn't reach the threshold for the rest of today.",
+      "forecastUntil": "Forecast: enough sun until {time}.",
+      "hold": "Starts in about {remaining} if the surplus holds.",
+      "hours": "Next possible start at {from}.",
+      "mode": "Won't start until the charging point is back in Smart mode.",
+      "stopping": "Stops in {remaining} unless solar recovers.",
+      "unknown": "Waiting for valid averages."
+    }
   },
   "startupError": {
     "configFile": "Configuration file used:",

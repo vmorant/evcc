@@ -16,8 +16,8 @@
 					class="selector"
 					@update:model-value="changeMode"
 				/>
-				<div v-if="errors['mode']" class="invalid-feedback d-block">
-					{{ errors["mode"] }}
+				<div v-if="modeError" class="invalid-feedback d-block">
+					{{ modeError }}
 				</div>
 			</div>
 			<div>
@@ -31,8 +31,8 @@
 					class="selector"
 					@update:model-value="changeStrategy"
 				/>
-				<div v-if="errors['strategy']" class="invalid-feedback d-block">
-					{{ errors["strategy"] }}
+				<div v-if="strategyError" class="invalid-feedback d-block">
+					{{ strategyError }}
 				</div>
 			</div>
 		</div>
@@ -42,26 +42,33 @@
 		</div>
 
 		<template v-if="status">
-			<p class="fs-5 mb-4" data-testid="solar-control-reason">{{ reasonText }}</p>
+			<p class="fs-5 mb-1" data-testid="solar-control-reason">{{ reasonText }}</p>
+			<p v-if="verdictText" class="mb-0" data-testid="solar-control-verdict">
+				{{ verdictText }}
+			</p>
 
-			<div class="row g-4 mb-4">
-				<div v-for="c in comparisons" :key="c.key" class="col-12 col-md-4">
-					<ThresholdBar
-						:label="c.label"
-						:value="c.value"
-						:threshold="c.threshold"
-						:valid="c.valid"
-						:format="c.format"
-					/>
-				</div>
-			</div>
+			<CheckList
+				v-if="status.checks.length"
+				class="mt-3"
+				:checks="status.checks"
+				:phase="status.checksPhase"
+				:strategy="strategy"
+				:config="config"
+			/>
 
-			<div class="facts row g-3">
+			<div v-if="facts.length" class="row g-3 mt-1">
 				<div v-for="f in facts" :key="f.key" class="col-6 col-md-3">
 					<div class="evcc-gray small">{{ f.label }}</div>
 					<div>{{ f.value }}</div>
 				</div>
 			</div>
+
+			<HowItWorks
+				class="mt-3"
+				:strategy="strategy"
+				:config="config"
+				:soc="status.values.soc"
+			/>
 		</template>
 		<p v-else class="evcc-gray mb-0">{{ $t("solarControl.status.noData") }}</p>
 
@@ -84,57 +91,66 @@ import formatter, { POWER_UNIT } from "@/mixins/formatter";
 import Card from "../Helper/Card.vue";
 import SelectGroup from "../Helper/SelectGroup.vue";
 import SavingIndicator, { type SavingState } from "../Helper/SavingIndicator.vue";
-import ThresholdBar from "./ThresholdBar.vue";
+import CheckList from "./CheckList.vue";
+import HowItWorks from "./HowItWorks.vue";
+import { formatHour, verdict, type Verdict } from "./decision";
 import type {
 	SolarControlConfig,
 	SolarControlMode,
 	SolarControlReason,
 	SolarControlStatus,
 	SolarControlStrategy,
+	SolarControlValidationError,
 } from "./types";
 import type { SelectOption } from "@/types/evcc";
-
-interface Comparison {
-	key: string;
-	label: string;
-	value: number | null;
-	threshold: number | null;
-	valid: boolean;
-	format: (n: number) => string;
-}
 
 interface Fact {
 	key: string;
 	label: string;
-	value: string;
+	value: string | null;
 }
 
 const MODES: SolarControlMode[] = ["off", "shadow", "active"];
 const STRATEGIES: SolarControlStrategy[] = ["smart", "simple"];
+// fixed duration of the simple stop rule on solar power
+const SIMPLE_STOP_MIN = 10;
 
 export default defineComponent({
 	name: "SolarControlStatusCard",
-	components: { Card, SelectGroup, SavingIndicator, ThresholdBar },
+	components: { Card, SelectGroup, SavingIndicator, CheckList, HowItWorks },
 	mixins: [formatter],
 	props: {
 		config: { type: Object as PropType<SolarControlConfig>, required: true },
 		status: { type: Object as PropType<SolarControlStatus | null>, default: null },
 		savingState: { type: String as PropType<SavingState>, default: null },
-		errors: { type: Object as PropType<Record<string, string>>, default: () => ({}) },
+		errors: {
+			type: Object as PropType<Record<string, SolarControlValidationError>>,
+			default: () => ({}),
+		},
 	},
 	emits: ["change-mode", "change-strategy", "reset"],
 	computed: {
+		// live status follows changes made by other clients, the config only after reload
 		mode(): SolarControlMode {
-			return this.config.mode;
+			return this.status?.mode ?? this.config.mode;
 		},
 		strategy(): SolarControlStrategy {
-			return this.config.strategy;
+			return this.status?.strategy ?? this.config.strategy;
+		},
+		modeError(): string | undefined {
+			return this.errors["mode"]?.error;
+		},
+		strategyError(): string | undefined {
+			return this.errors["strategy"]?.error;
 		},
 		isShadow(): boolean {
 			return this.mode === "shadow";
 		},
 		isSimple(): boolean {
 			return this.strategy === "simple";
+		},
+		isCharging(): boolean {
+			return this.status?.checksPhase === "stop";
 		},
 		modeOptions(): SelectOption<string>[] {
 			return MODES.map((value) => ({ value, name: this.$t(`solarControl.mode.${value}`) }));
@@ -156,7 +172,7 @@ export default defineComponent({
 					if (r.remaining != null) return "chargingStopping";
 					return r.value != null && r.threshold != null ? "chargingValues" : "charging";
 				case "ready":
-					return r.remaining != null ? "readyIn" : "ready";
+					return r.remaining ? "readyIn" : "readyNow";
 				case "surplusLow":
 				case "forecastLow":
 					return this.isSimple ? `${r.code}Simple` : r.code;
@@ -182,127 +198,114 @@ export default defineComponent({
 				to: this.fmtHour(r.to),
 			});
 		},
-		comparisons(): Comparison[] {
+		verdict(): Verdict | null {
 			const s = this.status;
-			if (!s) return [];
-			const { values: v, valid } = s;
-			const power = this.fmtPower;
-			const percent = (n: number) => this.fmtPercentage(n);
-			if (this.isSimple) {
-				return [
-					{
-						key: "pvStart",
-						label: this.$t("solarControl.status.pvAvg30Start"),
-						value: v.pvAvg30,
-						threshold: v.startThreshold,
-						valid: valid.pvAvg30,
-						format: power,
-					},
-					{
-						key: "coverage",
-						label: this.$t("solarControl.status.forecastCoverage"),
-						value: v.forecastCoverage,
-						threshold: this.config.simpleForecastShare,
-						valid: true,
-						format: percent,
-					},
-					{
-						key: "pvStop",
-						label: this.$t("solarControl.status.pvAvg30Stop"),
-						value: v.pvAvg30,
-						threshold: this.config.simpleStopPower,
-						valid: valid.pvAvg30,
-						format: power,
-					},
-				];
+			if (!s || this.mode === "off") return null;
+			return verdict(s.checks, s.checksPhase, s.values, new Date());
+		},
+		verdictText(): string {
+			const v = this.verdict;
+			if (!v) return "";
+			if (v.key === "charging") {
+				return this.isSimple
+					? this.$t("solarControl.verdict.chargingSimple", {
+							stop: this.fmtPower(this.config.simpleStopPower),
+							min: SIMPLE_STOP_MIN,
+						})
+					: this.$t("solarControl.verdict.chargingSmart", {
+							stop: this.fmtNullablePower(this.status?.values.pvStopThreshold),
+							min: this.config.stopHoldMin,
+						});
 			}
-			return [
-				{
-					key: "surplus",
-					label: this.$t("solarControl.status.surplusAvg15"),
-					value: v.surplusAvg15,
-					threshold: v.startThreshold,
-					valid: valid.surplusAvg15,
-					format: power,
-				},
-				{
-					key: "forecast",
-					label: this.$t("solarControl.status.forecastSurplus2h"),
-					value: v.forecastSurplus2h,
-					threshold: v.startThreshold,
-					valid: true,
-					format: power,
-				},
-				{
-					key: "pvStop",
-					label: this.$t("solarControl.status.pvAvg15Stop"),
-					value: v.pvAvg15,
-					threshold: v.pvStopThreshold,
-					valid: valid.pvAvg15,
-					format: power,
-				},
-			];
+			return this.$t(`solarControl.verdict.${v.key}`, {
+				remaining: this.fmtSeconds(v.remaining),
+				time: v.time ? this.fmtHourMinute(v.time) : "–",
+				from: this.fmtHour(v.from),
+				to: this.fmtHour(v.to),
+			});
 		},
 		facts(): Fact[] {
 			const s = this.status;
 			if (!s) return [];
+			const v = s.values;
+			const power = (n: number | null) => (n === null ? null : this.fmtPower(n));
+			const time = (t: string | null) => (t ? this.fmtHourMinute(new Date(t)) : null);
 			const facts: Fact[] = [
+				{ key: "pv", label: this.$t("solarControl.status.pvNow"), value: power(v.pv) },
 				{
-					key: "starts",
-					label: this.$t("solarControl.status.startsToday"),
-					value: this.isSimple
-						? `${s.startsToday}`
-						: this.$t("solarControl.status.countOf", {
-								count: s.startsToday,
-								max: s.maxStartsPerDay,
-							}),
-				},
-				{
-					key: "cooldown",
-					label: this.$t("solarControl.status.cooldown"),
-					value: this.fmtSeconds(s.cooldownRemaining),
-				},
-				{
-					key: "startHold",
-					label: this.$t("solarControl.status.startHold"),
-					value: this.fmtSeconds(s.startHoldRemaining),
-				},
-				{
-					key: "stopHold",
-					label: this.$t("solarControl.status.stopHold"),
-					value: this.fmtSeconds(s.stopHoldRemaining),
-				},
-				{
-					key: "soc",
-					label: this.$t("solarControl.status.soc"),
-					value: s.values.soc == null ? "–" : this.fmtPercentage(s.values.soc),
-				},
-				{
-					key: "lastStart",
-					label: this.$t("solarControl.status.lastStart"),
-					value: this.fmtTime(s.lastStartAt),
-				},
-				{
-					key: "lastStop",
-					label: this.$t("solarControl.status.lastStop"),
-					value: this.fmtTime(s.lastStopAt),
+					key: "home",
+					label: this.$t("solarControl.status.homeNow"),
+					value: power(v.home),
 				},
 			];
+			if (this.isCharging) {
+				facts.push(
+					{
+						key: "chargePower",
+						label: this.$t("solarControl.status.chargePower"),
+						value: power(v.chargePower),
+					},
+					{
+						key: "session",
+						label: this.$t("solarControl.status.session"),
+						value: this.sessionText,
+					}
+				);
+			} else {
+				const windowStart = time(v.forecastWindowStart);
+				const windowEnd = time(v.forecastWindowEnd);
+				facts.push(
+					{
+						key: "surplus",
+						label: this.$t("solarControl.status.surplusNow"),
+						value: power(v.surplus),
+					},
+					{
+						key: "forecast",
+						label: this.$t("solarControl.status.forecastRestOfDay"),
+						value:
+							v.forecastEnergyRestOfDay === null
+								? null
+								: this.fmtWh(v.forecastEnergyRestOfDay, POWER_UNIT.AUTO),
+					},
+					{
+						key: "sunEnd",
+						label: this.$t("solarControl.status.sunEnd"),
+						value: time(v.sunEnd),
+					},
+					{
+						key: "window",
+						label: this.$t("solarControl.status.forecastWindow"),
+						value: windowStart && windowEnd ? `${windowStart}–${windowEnd}` : null,
+					}
+				);
+			}
 			if (!this.isSimple) {
-				facts.splice(4, 0, {
-					key: "sun",
-					label: this.$t("solarControl.status.sun"),
-					value: s.sunOk
-						? this.$t("solarControl.status.sunOk")
-						: this.$t("solarControl.status.sunLow"),
+				facts.push({
+					key: "soc",
+					label: this.$t("solarControl.status.soc"),
+					value: v.soc === null ? null : this.fmtPercentage(v.soc),
 				});
 			}
-			return facts;
+			return facts.filter((f) => f.value !== null);
+		},
+		sessionText(): string | null {
+			const v = this.status?.values;
+			if (v?.sessionEnergy == null) return null;
+			const energy = this.fmtKWh(v.sessionEnergy);
+			if (v.sessionSolarPercentage == null) return energy;
+			const solar = this.$t("solarControl.history.solarPercentage", {
+				value: this.fmtPercentage(v.sessionSolarPercentage),
+			});
+			return `${energy} · ${solar}`;
 		},
 	},
 	methods: {
 		fmtPower(n: number): string {
 			return this.fmtW(n, POWER_UNIT.W);
+		},
+		fmtNullablePower(n?: number | null): string {
+			return n == null ? "–" : this.fmtPower(n);
 		},
 		fmtSeconds(seconds?: number | null): string {
 			if (seconds == null || seconds <= 0) return "–";
@@ -310,13 +313,7 @@ export default defineComponent({
 		},
 		fmtHour(hour?: number): string {
 			if (hour == null) return "–";
-			const d = new Date();
-			d.setHours(hour, 0, 0, 0);
-			return this.fmtHourMinute(d);
-		},
-		fmtTime(time: string | null): string {
-			if (!time) return "–";
-			return this.fmtDayTime(new Date(time));
+			return formatHour(hour, this.fmtHourMinute);
 		},
 		changeMode(value: SolarControlMode) {
 			if (value !== this.mode) this.$emit("change-mode", value);
