@@ -35,6 +35,12 @@ func NewForecast(now time.Time, loc *time.Location, rates []Rate, energy EnergyF
 	f := &Forecast{
 		EnergyNext2h:    energy(hourStart, hourStart.Add(2*time.Hour)) * scale,
 		EnergyRestOfDay: energy(now, dayEnd) * scale,
+		Slots:           make([]Rate, 0, len(rates)),
+	}
+
+	for _, r := range rates {
+		r.Value *= scale
+		f.Slots = append(f.Slots, r)
 	}
 
 	for _, r := range rates {

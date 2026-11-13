@@ -45,6 +45,12 @@ func TestNewForecast(t *testing.T) {
 	assert.InDelta(t, (2000*(6+40.0/60)+500*3)*1.5, f.EnergyRestOfDay, 1e-9)
 	assert.Equal(t, at(7, 0), f.SunStart)
 	assert.Equal(t, at(20, 0), f.SunEnd)
+
+	// slots are scaled copies
+	require.Len(t, f.Slots, len(rates))
+	assert.Equal(t, rates[24+10].Start, f.Slots[24+10].Start)
+	assert.Equal(t, 3000.0, f.Slots[24+10].Value)
+	assert.Equal(t, 2000.0, rates[24+10].Value)
 }
 
 func TestNewForecastNoSun(t *testing.T) {

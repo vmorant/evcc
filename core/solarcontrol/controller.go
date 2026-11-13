@@ -2,6 +2,7 @@ package solarcontrol
 
 import (
 	"math"
+	"slices"
 	"sync"
 	"time"
 )
@@ -109,6 +110,8 @@ type cycle struct {
 	forecastSurplus2h *float64
 	forecastCoverage  *float64
 	sunDeclining      *bool
+
+	windowStart, windowEnd *time.Time
 }
 
 // proposal is the action the rules ask for, before the mode decides what happens
@@ -220,6 +223,7 @@ func (c *Controller) derive(now time.Time, in Inputs) cycle {
 		cy.forecastCoverage = finitePtr(f.EnergyRestOfDay / hours / c.cfg.MinChargePower * 100)
 
 		cy.sunDeclining = c.sunDecliningAt(now, f)
+		cy.windowStart, cy.windowEnd = c.forecastWindow(&cy, f.Slots)
 	}
 
 	return cy
@@ -501,7 +505,7 @@ func (c *Controller) cooldownReason(now time.Time) (Reason, bool) {
 }
 
 func (c *Controller) buildStatus(cy *cycle) Status {
-	now := cy.now
+	now, in := cy.now, cy.in
 
 	s := Status{
 		Values: Values{
@@ -514,6 +518,10 @@ func (c *Controller) buildStatus(cy *cycle) Status {
 			ForecastCoverage:  cy.forecastCoverage,
 			Soc:               cy.soc,
 			SunDeclining:      cy.sunDeclining,
+
+			SessionEnergy:       finitePtr(in.SessionEnergy / 1e3),
+			ForecastWindowStart: cy.windowStart,
+			ForecastWindowEnd:   cy.windowEnd,
 		},
 		Valid: Valid{
 			SurplusAvg15:    c.surplus15.valid(now),
@@ -524,6 +532,25 @@ func (c *Controller) buildStatus(cy *cycle) Status {
 		CooldownRemaining: c.cooldownRemaining(now).Seconds(),
 		SunOk:             c.sunOk,
 	}
+
+	if cy.pvKnown {
+		s.Values.PV = new(in.PV)
+	}
+	if finite(in.Home) {
+		s.Values.Home = new(in.Home)
+	}
+	if finite(in.ChargePower) {
+		s.Values.ChargePower = in.ChargePower
+	}
+	if f := in.Forecast; f != nil {
+		s.Values.ForecastEnergyRestOfDay = finitePtr(f.EnergyRestOfDay)
+		s.Values.SunEnd = timePtr(f.SunEnd)
+	}
+	if p := in.SessionSolarPercentage; p != nil {
+		s.Values.SessionSolarPercentage = finitePtr(*p)
+	}
+
+	s.ChecksPhase, s.Checks = c.checks(cy)
 
 	if c.cfg.Strategy == StrategySimple {
 		s.Values.StartThreshold = new(cy.simpleStartThreshold)
@@ -567,6 +594,7 @@ func (c *Controller) Status() Status {
 		s = Status{
 			Reason: Reason{Code: ReasonWarmup},
 			SunOk:  c.sunOk,
+			Checks: []Check{},
 		}
 		if c.cfg.Mode == ModeOff {
 			s.Reason = Reason{Code: ReasonDisabled}
@@ -583,6 +611,7 @@ func (c *Controller) Status() Status {
 	s.LastStartAt = timePtr(c.st.LastStartAt)
 	s.LastStopAt = timePtr(c.st.LastStopAt)
 	s.Events = cloneEvents(c.st.Events)
+	s.Checks = cloneChecks(s.Checks)
 
 	return s
 }
@@ -646,6 +675,9 @@ func (c *Controller) Reset(now time.Time) {
 func cloneInputs(in Inputs) Inputs {
 	in.Soc = clonePtr(in.Soc)
 	in.Forecast = clonePtr(in.Forecast)
+	if in.Forecast != nil {
+		in.Forecast.Slots = slices.Clone(in.Forecast.Slots)
+	}
 	in.SessionSolarPercentage = clonePtr(in.SessionSolarPercentage)
 	return in
 }

@@ -20,6 +20,7 @@ type Forecast struct {
 	EnergyRestOfDay float64   // Wh from now until the end of the local day
 	SunStart        time.Time // start of the first slot of today with forecast > 0, zero if none
 	SunEnd          time.Time // end of the last slot of today with forecast > 0, zero if none
+	Slots           []Rate    // forecast slots in W, scaled like the energies, ascending
 }
 
 // Inputs are the measurements of one control cycle
@@ -164,6 +165,28 @@ type Values struct {
 	ForecastCoverage  *float64 `json:"forecastCoverage"`  // %
 	Soc               *float64 `json:"soc"`               // %
 	SunDeclining      *bool    `json:"sunDeclining"`
+
+	PV                      *float64   `json:"pv"`                      // W, this cycle
+	Home                    *float64   `json:"home"`                    // W, this cycle
+	ChargePower             float64    `json:"chargePower"`             // W
+	ForecastEnergyRestOfDay *float64   `json:"forecastEnergyRestOfDay"` // Wh
+	SunEnd                  *time.Time `json:"sunEnd"`
+	SessionEnergy           *float64   `json:"sessionEnergy"`          // kWh
+	SessionSolarPercentage  *float64   `json:"sessionSolarPercentage"` // %
+	ForecastWindowStart     *time.Time `json:"forecastWindowStart"`    // forecast power meets the start threshold from here, today
+	ForecastWindowEnd       *time.Time `json:"forecastWindowEnd"`
+}
+
+// Check is one start or stop condition, computed from the same values as the
+// decision. Start checks are Ok when the condition is met, stop checks are Ok
+// while the rule has no stop pending.
+type Check struct {
+	Key       string   `json:"key"`
+	Ok        bool     `json:"ok"`
+	Known     bool     `json:"known"` // false: input unknown or average not valid yet
+	Value     *float64 `json:"value,omitempty"`
+	Threshold *float64 `json:"threshold,omitempty"`
+	Remaining *float64 `json:"remaining,omitempty"` // seconds
 }
 
 // Valid reports which moving averages cover enough of their window
@@ -187,6 +210,8 @@ type Status struct {
 	StartHoldRemaining *float64   `json:"startHoldRemaining"` // seconds, nil if the start condition does not hold
 	StopHoldRemaining  *float64   `json:"stopHoldRemaining"`  // seconds, nil if no stop timer runs
 	SunOk              bool       `json:"sunOk"`
+	Checks             []Check    `json:"checks"`
+	ChecksPhase        string     `json:"checksPhase"` // start, stop, empty before the first evaluation
 	LastStartAt        *time.Time `json:"lastStartAt"`
 	LastStopAt         *time.Time `json:"lastStopAt"`
 	Events             []Event    `json:"events"` // most recent first
