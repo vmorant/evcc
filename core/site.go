@@ -1363,6 +1363,7 @@ func (site *Site) update(lp updater) {
 		}
 
 		site.updatePower(lp, state, totalChargePower, consumption, feedin)
+		site.updateSolarControl(totalChargePower) // solarcontrol
 	}
 
 	// smart grid charging

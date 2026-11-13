@@ -339,6 +339,8 @@ func (s *HTTPd) RegisterSystemHandler(site *core.Site, pub publisher, cache *uti
 		for _, r := range routes {
 			api.Methods(r.Methods()...).Path(r.Pattern).Handler(r.HandlerFunc)
 		}
+
+		registerSolarControlHandlers(api, site, auth) // solarcontrol
 	}
 
 	{
