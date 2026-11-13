@@ -83,10 +83,24 @@ func DefaultConfig() Config {
 	}
 }
 
+// ValidationError codes
+const (
+	codeRange   = "range"   // out of Min..Max
+	codeOrder   = "order"   // must be greater than its counterpart
+	codeInvalid = "invalid" // unknown enum value
+)
+
 // ValidationError reports the first invalid config field by its json name
 type ValidationError struct {
-	Field string `json:"field"`
-	Msg   string `json:"error"`
+	Field string   `json:"field"`
+	Code  string   `json:"code"`
+	Msg   string   `json:"error"`
+	Min   *float64 `json:"min,omitempty"` // range only
+	Max   *float64 `json:"max,omitempty"` // range only
+}
+
+func rangeError(field string, lo, hi float64, msg string) *ValidationError {
+	return &ValidationError{Field: field, Code: codeRange, Msg: msg, Min: new(lo), Max: new(hi)}
 }
 
 func (e *ValidationError) Error() string {
@@ -110,13 +124,13 @@ func (c Config) Validate() error {
 	switch c.Mode {
 	case ModeOff, ModeShadow, ModeActive:
 	default:
-		return &ValidationError{"mode", fmt.Sprintf("invalid value %q", c.Mode)}
+		return &ValidationError{Field: "mode", Code: codeInvalid, Msg: fmt.Sprintf("invalid value %q", c.Mode)}
 	}
 
 	switch c.Strategy {
 	case StrategySmart, StrategySimple:
 	default:
-		return &ValidationError{"strategy", fmt.Sprintf("invalid value %q", c.Strategy)}
+		return &ValidationError{Field: "strategy", Code: codeInvalid, Msg: fmt.Sprintf("invalid value %q", c.Strategy)}
 	}
 
 	for _, r := range []floatRange{
@@ -135,7 +149,7 @@ func (c Config) Validate() error {
 	} {
 		// NaN fails both comparisons, reject it explicitly
 		if !(r.val >= r.min && r.val <= r.max) {
-			return &ValidationError{r.field, fmt.Sprintf("must be between %g and %g", r.min, r.max)}
+			return rangeError(r.field, r.min, r.max, fmt.Sprintf("must be between %g and %g", r.min, r.max))
 		}
 	}
 
@@ -148,16 +162,16 @@ func (c Config) Validate() error {
 		{"stopHoldMin", c.StopHoldMin, 0, 60},
 	} {
 		if r.val < r.min || r.val > r.max {
-			return &ValidationError{r.field, fmt.Sprintf("must be between %d and %d", r.min, r.max)}
+			return rangeError(r.field, float64(r.min), float64(r.max), fmt.Sprintf("must be between %d and %d", r.min, r.max))
 		}
 	}
 
 	if c.SocLow >= c.SocHigh {
-		return &ValidationError{"socHigh", "must be greater than socLow"}
+		return &ValidationError{Field: "socHigh", Code: codeOrder, Msg: "must be greater than socLow"}
 	}
 
 	if c.StartHourFrom >= c.StartHourTo {
-		return &ValidationError{"startHourTo", "must be greater than startHourFrom"}
+		return &ValidationError{Field: "startHourTo", Code: codeOrder, Msg: "must be greater than startHourFrom"}
 	}
 
 	return nil

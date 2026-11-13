@@ -20,27 +20,29 @@ func TestDefaultConfigValid(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	for _, tc := range []struct {
-		field string
-		mod   func(*Config)
+		field    string
+		code     string
+		min, max *float64
+		mod      func(*Config)
 	}{
-		{"mode", func(c *Config) { c.Mode = "on" }},
-		{"strategy", func(c *Config) { c.Strategy = "" }},
-		{"minChargePower", func(c *Config) { c.MinChargePower = 499 }},
-		{"minChargePower", func(c *Config) { c.MinChargePower = math.NaN() }},
-		{"restartCooldownMin", func(c *Config) { c.RestartCooldownMin = 121 }},
-		{"socLow", func(c *Config) { c.SocLow = -1 }},
-		{"socHigh", func(c *Config) { c.SocHigh = c.SocLow }},
-		{"startShareHighSoc", func(c *Config) { c.StartShareHighSoc = 151 }},
-		{"stopHysteresis", func(c *Config) { c.StopHysteresis = 5 }},
-		{"baseHomeLoad", func(c *Config) { c.BaseHomeLoad = math.Inf(1) }},
-		{"maxStartsPerDay", func(c *Config) { c.MaxStartsPerDay = 0 }},
-		{"startHourFrom", func(c *Config) { c.StartHourFrom = -1 }},
-		{"startHourTo", func(c *Config) { c.StartHourTo = 25 }},
-		{"startHourTo", func(c *Config) { c.StartHourTo = c.StartHourFrom }},
-		{"startHoldMin", func(c *Config) { c.StartHoldMin = 61 }},
-		{"stopHoldMin", func(c *Config) { c.StopHoldMin = -1 }},
-		{"simpleForecastShare", func(c *Config) { c.SimpleForecastShare = 101 }},
-		{"simpleEndOfDayPower", func(c *Config) { c.SimpleEndOfDayPower = 2001 }},
+		{"mode", "invalid", nil, nil, func(c *Config) { c.Mode = "on" }},
+		{"strategy", "invalid", nil, nil, func(c *Config) { c.Strategy = "" }},
+		{"minChargePower", "range", new(500.0), new(11000.0), func(c *Config) { c.MinChargePower = 499 }},
+		{"minChargePower", "range", new(500.0), new(11000.0), func(c *Config) { c.MinChargePower = math.NaN() }},
+		{"restartCooldownMin", "range", new(0.0), new(120.0), func(c *Config) { c.RestartCooldownMin = 121 }},
+		{"socLow", "range", new(0.0), new(100.0), func(c *Config) { c.SocLow = -1 }},
+		{"socHigh", "order", nil, nil, func(c *Config) { c.SocHigh = c.SocLow }},
+		{"startShareHighSoc", "range", new(10.0), new(150.0), func(c *Config) { c.StartShareHighSoc = 151 }},
+		{"stopHysteresis", "range", new(10.0), new(100.0), func(c *Config) { c.StopHysteresis = 5 }},
+		{"baseHomeLoad", "range", new(100.0), new(1000.0), func(c *Config) { c.BaseHomeLoad = math.Inf(1) }},
+		{"maxStartsPerDay", "range", new(1.0), new(10.0), func(c *Config) { c.MaxStartsPerDay = 0 }},
+		{"startHourFrom", "range", new(0.0), new(24.0), func(c *Config) { c.StartHourFrom = -1 }},
+		{"startHourTo", "range", new(0.0), new(24.0), func(c *Config) { c.StartHourTo = 25 }},
+		{"startHourTo", "order", nil, nil, func(c *Config) { c.StartHourTo = c.StartHourFrom }},
+		{"startHoldMin", "range", new(0.0), new(60.0), func(c *Config) { c.StartHoldMin = 61 }},
+		{"stopHoldMin", "range", new(0.0), new(60.0), func(c *Config) { c.StopHoldMin = -1 }},
+		{"simpleForecastShare", "range", new(10.0), new(100.0), func(c *Config) { c.SimpleForecastShare = 101 }},
+		{"simpleEndOfDayPower", "range", new(0.0), new(2000.0), func(c *Config) { c.SimpleEndOfDayPower = 2001 }},
 	} {
 		cfg := DefaultConfig()
 		tc.mod(&cfg)
@@ -48,7 +50,25 @@ func TestValidate(t *testing.T) {
 		var verr *ValidationError
 		require.ErrorAs(t, cfg.Validate(), &verr, tc.field)
 		assert.Equal(t, tc.field, verr.Field)
+		assert.Equal(t, tc.code, verr.Code, tc.field)
+		assert.Equal(t, tc.min, verr.Min, tc.field)
+		assert.Equal(t, tc.max, verr.Max, tc.field)
+		assert.NotEmpty(t, verr.Msg, tc.field)
 	}
+}
+
+func TestValidationErrorJSON(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxStartsPerDay = 11
+	b, err := json.Marshal(cfg.Validate())
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"field":"maxStartsPerDay","code":"range","error":"must be between 1 and 10","min":1,"max":10}`, string(b))
+
+	cfg = DefaultConfig()
+	cfg.SocHigh = cfg.SocLow
+	b, err = json.Marshal(cfg.Validate())
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"field":"socHigh","code":"order","error":"must be greater than socLow"}`, string(b))
 }
 
 func TestNewInvalidConfig(t *testing.T) {
