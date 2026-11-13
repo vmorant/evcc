@@ -272,7 +272,7 @@ func TestNeverStartsUnlessSmart(t *testing.T) {
 }
 
 func TestNeverStartsWithMissingData(t *testing.T) {
-	for _, tc := range []struct {
+	cases := []struct {
 		name       string
 		strategies []Strategy
 		in         func(*Inputs)
@@ -284,22 +284,96 @@ func TestNeverStartsWithMissingData(t *testing.T) {
 		{"pv inf", []Strategy{StrategySmart, StrategySimple}, func(in *Inputs) { in.PV = math.Inf(1) }, ReasonWarmup},
 		{"home nan", []Strategy{StrategySmart}, func(in *Inputs) { in.Home = math.NaN() }, ReasonWarmup},
 		{"forecast", []Strategy{StrategySmart, StrategySimple}, func(in *Inputs) { in.Forecast = nil }, ReasonForecastMissing},
-	} {
-		for _, strategy := range tc.strategies {
-			t.Run(tc.name+" "+string(strategy), func(t *testing.T) {
-				in := sunnyInputs()
-				in.Connected = false
-				tc.in(&in)
-				s := newSim(t, at(10, 0), in, func(c *Config) { c.Strategy = strategy })
+	}
 
-				s.run(40 * time.Minute)
-				s.in.Connected = true
-				s.run(40 * time.Minute)
+	// connected and duration before the data goes missing
+	phases := []struct {
+		name      string
+		connected bool
+		before    time.Duration
+	}{
+		{"from start", false, 0},
+		{"then connect", false, 40 * time.Minute},
+		{"while waiting", true, 15 * time.Minute},
+	}
 
-				assert.Empty(t, s.actions())
-				assert.Equal(t, tc.reason, s.reason())
-			})
+	for _, ph := range phases {
+		for _, tc := range cases {
+			for _, strategy := range tc.strategies {
+				t.Run(ph.name+" "+tc.name+" "+string(strategy), func(t *testing.T) {
+					in := sunnyInputs()
+					in.Connected = ph.connected
+					s := newSim(t, at(10, 0), in, func(c *Config) { c.Strategy = strategy })
+					s.run(ph.before)
+					require.Empty(t, s.actions())
+
+					tc.in(&s.in)
+					if ph.before == 0 {
+						s.run(40 * time.Minute)
+					}
+					s.in.Connected = true
+					s.run(40 * time.Minute)
+
+					assert.Empty(t, s.actions())
+					assert.Equal(t, tc.reason, s.reason())
+				})
+			}
 		}
+	}
+}
+
+func TestMissingDataStopsHoldImmediately(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   func(*Inputs)
+	}{
+		{"pv", func(in *Inputs) { in.PV = math.NaN() }},
+		{"home", func(in *Inputs) { in.Home = math.NaN() }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newSim(t, at(10, 0), sunnyInputs(), nil)
+			s.run(15 * time.Minute) // hold runs since 10:12
+			require.NotNil(t, s.c.Status().StartHoldRemaining)
+
+			tc.in(&s.in)
+			s.step()
+			st := s.c.Status()
+			assert.Nil(t, st.StartHoldRemaining)
+			assert.Equal(t, ReasonWarmup, st.Reason.Code)
+
+			// data back: the hold starts over
+			s.in = sunnyInputs()
+			res, ok := s.runUntilAction(time.Hour)
+			require.True(t, ok)
+			assert.Equal(t, ActionStart, res.Action)
+			assert.Equal(t, at(10, 25).Add(30*time.Second), res.at)
+		})
+	}
+}
+
+func TestStartHoldResetsAfterGap(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		gap   time.Duration
+		start time.Duration // after the first cycle back
+	}{
+		{"within limit", 2 * time.Minute, 30 * time.Second},
+		// averages stay valid across a short gap, only the hold starts over
+		{"short", 3 * time.Minute, 10 * time.Minute},
+		// averages need 12 min of new samples first
+		{"long", 11 * time.Minute, 22 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newSim(t, at(10, 0), sunnyInputs(), nil)
+			s.run(20 * time.Minute) // hold runs since 10:12
+
+			s.now = s.now.Add(tc.gap - cycleLen)
+			back := s.now
+			res, ok := s.runUntilAction(time.Hour)
+			require.True(t, ok)
+			assert.Equal(t, ActionStart, res.Action)
+			assert.Equal(t, back.Add(tc.start), res.at)
+		})
 	}
 }
 
@@ -309,13 +383,16 @@ func TestUnknownPVAgesOut(t *testing.T) {
 	require.True(t, s.c.Status().Valid.PvAvg15)
 
 	s.in.PV = math.NaN()
-	s.run(15 * time.Minute)
+	s.run(2*time.Minute + 30*time.Second)
 
 	st := s.c.Status()
 	assert.False(t, st.Valid.SurplusAvg15)
 	assert.False(t, st.Valid.PvAvg15)
+	assert.False(t, st.Valid.PvAvg30)
 	assert.Equal(t, ReasonWarmup, st.Reason.Code)
 	assert.Nil(t, st.StartHoldRemaining)
+
+	s.run(15 * time.Minute)
 	assert.Empty(t, s.actions())
 }
 

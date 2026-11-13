@@ -59,7 +59,7 @@ func (c *Controller) smartReason(cy *cycle) Reason {
 		return Reason{Code: ReasonOutsideHours, From: new(c.cfg.StartHourFrom), To: new(c.cfg.StartHourTo)}
 	}
 
-	if !c.surplus15.valid(now) || !c.pv15.valid(now) {
+	if !cy.surplusKnown || !c.surplus15.valid(now) || !c.pv15.valid(now) {
 		return Reason{Code: ReasonWarmup}
 	}
 

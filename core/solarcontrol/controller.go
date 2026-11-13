@@ -286,6 +286,11 @@ func (c *Controller) updateConditions(cy *cycle) {
 		c.sunOk = c.pv15.mean() >= *cy.pvStopThreshold
 	}
 	c.stopHold.update(now, on && !c.sunOk)
+
+	// the start hold needs continuous data, a gap between cycles starts it over
+	if c.evaluated && (now.Before(c.lastNow) || now.Sub(c.lastNow) > maxSampleGap) {
+		c.startHold.update(now, false)
+	}
 	c.startHold.update(now, c.surplusAboveStart(cy))
 
 	if cy.sunDeclining != nil {
@@ -295,9 +300,10 @@ func (c *Controller) updateConditions(cy *cycle) {
 	c.updateSimpleTimers(cy)
 }
 
-// surplusAboveStart is smart start condition 4 without the hold
+// surplusAboveStart is smart start condition 4 without the hold. It requires
+// this cycle's surplus, so the hold never runs on old samples alone.
 func (c *Controller) surplusAboveStart(cy *cycle) bool {
-	return c.surplus15.valid(cy.now) && cy.startThreshold != nil && c.surplus15.mean() > *cy.startThreshold
+	return cy.surplusKnown && c.surplus15.valid(cy.now) && cy.startThreshold != nil && c.surplus15.mean() > *cy.startThreshold
 }
 
 func (c *Controller) propose(cy *cycle) proposal {
@@ -473,7 +479,7 @@ func (c *Controller) buildStatus(cy *cycle) Status {
 			SurplusAvg15:    c.surplus15.valid(now),
 			PvAvg15:         c.pv15.valid(now),
 			PvAvg30:         c.pv30.valid(now),
-			SolarShareAvg15: c.share15.valid(now),
+			SolarShareAvg15: c.share15.frozenValid(),
 		},
 		CooldownRemaining: c.cooldownRemaining(now).Seconds(),
 		SunOk:             c.sunOk,

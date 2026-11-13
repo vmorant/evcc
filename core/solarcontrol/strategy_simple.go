@@ -17,7 +17,7 @@ func (c *Controller) updateSimpleTimers(cy *cycle) {
 	pv30 := c.pv30.mean()
 
 	c.stopPower.updateGated(now, on && in.Charging, pv30Valid, pv30 < c.cfg.SimpleStopPower)
-	c.stopShare.updateGated(now, on && in.Charging, c.share15.valid(now), c.share15.mean() < c.cfg.SimpleShareStop)
+	c.stopShare.updateGated(now, on && in.Charging, c.share15.frozenValid(), c.share15.mean() < c.cfg.SimpleShareStop)
 	c.stopEndOfDay.updateGated(now, on, pv30Valid, pv30 < c.cfg.SimpleEndOfDayPower)
 }
 
@@ -66,7 +66,7 @@ func (c *Controller) simpleReason(cy *cycle) Reason {
 		return r
 	}
 
-	if !c.pv30.valid(now) {
+	if !cy.pvKnown || !c.pv30.valid(now) {
 		return Reason{Code: ReasonWarmup}
 	}
 
@@ -86,7 +86,7 @@ func (c *Controller) simpleReason(cy *cycle) Reason {
 
 // sunFirm is the simple start condition on the pv average
 func (c *Controller) sunFirm(cy *cycle) bool {
-	return c.pv30.valid(cy.now) && c.pv30.mean() > cy.simpleStartThreshold
+	return cy.pvKnown && c.pv30.valid(cy.now) && c.pv30.mean() > cy.simpleStartThreshold
 }
 
 type stopTimer struct {

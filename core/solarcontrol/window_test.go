@@ -21,10 +21,6 @@ func TestWindow(t *testing.T) {
 	assert.Equal(t, 150.0, w.mean())
 	assert.False(t, w.valid(t0.Add(30*time.Second)))
 
-	// valid once the samples span 80 % of the window
-	assert.False(t, w.valid(t0.Add(7*time.Minute+59*time.Second)))
-	assert.True(t, w.valid(t0.Add(8*time.Minute)))
-
 	// samples closer than 10 s and non-finite values are ignored
 	w.add(t0.Add(35*time.Second), 1e6)
 	w.add(t0.Add(time.Minute), math.NaN())
@@ -33,14 +29,57 @@ func TestWindow(t *testing.T) {
 	w.add(t0.Add(40*time.Second), 300)
 	assert.Equal(t, 200.0, w.mean())
 
+	// valid once the samples cover 80 % of the window
+	for i := 2; i <= 15; i++ {
+		w.add(t0.Add(time.Duration(i)*cycleLen), 200)
+	}
+	assert.False(t, w.valid(t0.Add(8*time.Minute)), "time without samples does not count")
+	w.add(t0.Add(8*time.Minute), 200)
+	assert.True(t, w.valid(t0.Add(8*time.Minute)))
+
 	// samples leave the window after its duration
 	w.add(t0.Add(10*time.Minute), 400)
-	assert.Equal(t, 300.0, w.mean())
+	assert.Equal(t, t0.Add(30*time.Second), w.samples[0].t)
 	assert.True(t, w.valid(t0.Add(10*time.Minute)))
 
 	w.prune(t0.Add(20 * time.Minute))
 	assert.Empty(t, w.samples)
 	assert.False(t, w.valid(t0.Add(20*time.Minute)))
+}
+
+func TestWindowStale(t *testing.T) {
+	t0 := at(10, 0)
+	w := newWindow(15 * time.Minute)
+	for i := range 31 {
+		w.add(t0.Add(time.Duration(i)*cycleLen), 100)
+	}
+	last := t0.Add(15 * time.Minute)
+	require.True(t, w.valid(last))
+
+	assert.True(t, w.valid(last.Add(2*time.Minute)))
+	assert.False(t, w.valid(last.Add(2*time.Minute+time.Second)), "newest sample too old")
+}
+
+func TestWindowCoverageGap(t *testing.T) {
+	t0 := at(10, 0)
+	w := newWindow(15 * time.Minute)
+	feed := func(from, to time.Duration) {
+		for d := from; d <= to; d += cycleLen {
+			w.add(t0.Add(d), 100)
+		}
+	}
+
+	// 5 min of samples, 5 min gap counted as 2 min, 4.5 min of samples
+	feed(0, 5*time.Minute)
+	feed(10*time.Minute, 14*time.Minute+30*time.Second)
+	assert.False(t, w.valid(t0.Add(14*time.Minute+30*time.Second)))
+
+	feed(15*time.Minute, 19*time.Minute+30*time.Second)
+	assert.False(t, w.valid(t0.Add(19*time.Minute+30*time.Second)))
+
+	// the gap left the window
+	feed(20*time.Minute, 22*time.Minute)
+	assert.True(t, w.valid(t0.Add(22*time.Minute)))
 }
 
 func TestWindowClockBackwards(t *testing.T) {
