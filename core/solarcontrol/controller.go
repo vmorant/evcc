@@ -322,7 +322,7 @@ func (c *Controller) proposeDisconnect(cy *cycle) proposal {
 	}
 
 	p.action = ActionDisconnect
-	p.event = c.newEvent(cy, EventDisconnect)
+	p.event = c.sessionEvent(cy, EventDisconnect)
 	p.event.ResetMode = p.resetMode
 	p.event.ResetAlways = p.resetAlways
 	return p
@@ -357,41 +357,46 @@ func (c *Controller) external(cy *cycle, d *Decision) {
 		c.addEvent(ev, d)
 
 	case prev == AlwaysChargeOn && cur == AlwaysChargeOff && cy.in.Connected:
-		ev := c.newEvent(cy, EventExternal)
+		ev := c.sessionEvent(cy, EventExternal)
 		ev.Action = ActionStop
 		ev.Rule = StopManualOff
-		ev.PV = c.pvAverage(cy)
+		ev.PV = c.pvAverage()
 		c.countStop(cy.now)
 		c.addEvent(ev, d)
 
 	case prev == AlwaysChargeOn && cur == AlwaysChargeOff:
-		ev := c.newEvent(cy, EventExternal)
+		ev := c.sessionEvent(cy, EventExternal)
 		ev.Action = ActionDisconnect
 		ev.ResetAlways = true
 		c.addEvent(ev, d)
 	}
 }
 
-// pvAverage is the pv average the active strategy stops on, nil while invalid
-func (c *Controller) pvAverage(cy *cycle) *float64 {
+// pvAverage is the pv average the active strategy stops on, for event details.
+// Nil without samples.
+func (c *Controller) pvAverage() *float64 {
 	w := c.pv15
 	if c.cfg.Strategy == StrategySimple {
 		w = c.pv30
 	}
-	if !w.valid(cy.now) {
+	if len(w.samples) == 0 {
 		return nil
 	}
 	return new(w.mean())
 }
 
-// newEvent creates an event with the session details
 func (c *Controller) newEvent(cy *cycle, typ EventType) Event {
-	ev := Event{
+	return Event{
 		Time:     cy.now,
 		Type:     typ,
 		Strategy: c.cfg.Strategy,
-		Energy:   finitePtr(cy.in.SessionEnergy / 1e3),
 	}
+}
+
+// sessionEvent creates an event with the details of the ending session
+func (c *Controller) sessionEvent(cy *cycle, typ EventType) Event {
+	ev := c.newEvent(cy, typ)
+	ev.Energy = finitePtr(cy.in.SessionEnergy / 1e3)
 	if p := cy.in.SessionSolarPercentage; p != nil {
 		ev.SolarPercentage = finitePtr(*p)
 	}
@@ -400,10 +405,9 @@ func (c *Controller) newEvent(cy *cycle, typ EventType) Event {
 
 func (c *Controller) startEvent(cy *cycle, typ EventType) Event {
 	ev := c.newEvent(cy, typ)
-	ev.Energy, ev.SolarPercentage = nil, nil
 
 	if c.cfg.Strategy == StrategySimple {
-		ev.Surplus = c.pvAverage(cy)
+		ev.Surplus = c.pvAverage()
 		ev.Threshold = new(cy.simpleStartThreshold)
 		return ev
 	}
@@ -416,9 +420,9 @@ func (c *Controller) startEvent(cy *cycle, typ EventType) Event {
 }
 
 func (c *Controller) stopEvent(cy *cycle, rule StopRule, threshold *float64) Event {
-	ev := c.newEvent(cy, EventStop)
+	ev := c.sessionEvent(cy, EventStop)
 	ev.Rule = rule
-	ev.PV = c.pvAverage(cy)
+	ev.PV = c.pvAverage()
 	ev.Threshold = threshold
 	return ev
 }

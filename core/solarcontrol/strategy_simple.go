@@ -89,17 +89,21 @@ func (c *Controller) sunFirm(cy *cycle) bool {
 	return c.pv30.valid(cy.now) && c.pv30.mean() > cy.simpleStartThreshold
 }
 
-// simpleStopRemaining returns the seconds until the first running stop timer fires, nil if none runs
+type stopTimer struct {
+	timer *holdTimer
+	hold  time.Duration
+}
+
+// simpleStopRemaining returns the seconds until the first running stop timer
+// fires, nil if none runs. Share and end of day timers only count while the sun declines.
 func (c *Controller) simpleStopRemaining(now time.Time) *float64 {
+	timers := []stopTimer{{&c.stopPower, simpleStopPowerHold}}
+	if c.sunDeclining {
+		timers = append(timers, stopTimer{&c.stopShare, simpleStopShareHold}, stopTimer{&c.stopEndOfDay, simpleStopEndOfDayHold})
+	}
+
 	var res *float64
-	for _, t := range []struct {
-		timer *holdTimer
-		hold  time.Duration
-	}{
-		{&c.stopPower, simpleStopPowerHold},
-		{&c.stopShare, simpleStopShareHold},
-		{&c.stopEndOfDay, simpleStopEndOfDayHold},
-	} {
+	for _, t := range timers {
 		if r := t.timer.remaining(now, t.hold); r != nil && (res == nil || *r < *res) {
 			res = r
 		}
