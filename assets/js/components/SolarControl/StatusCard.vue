@@ -335,7 +335,7 @@ export default defineComponent({
 }
 @media (--sm-and-up) {
 	.selector {
-		width: 18rem;
+		width: 22rem;
 	}
 }
 </style>
