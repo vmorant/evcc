@@ -2139,6 +2139,197 @@
     "resetWarning": "No hi ha cap tarifa dinàmica d’injecció configurada. Tanmateix, encara hi ha un límit de {limit}. Voleu netejar la configuració?",
     "title": "Prioritat d’injecció"
   },
+  "solarControl": {
+    "activate": {
+      "confirm": "Activa",
+      "description": "El control solar activarà i desactivarà Carrega sempre per si mateix. Desactiveu abans les automatitzacions de càrrega solar de Home Assistant; si no, tots dos controlaran la càrrega alhora.",
+      "title": "Voleu activar el control solar?"
+    },
+    "history": {
+      "empty": "Encara no hi ha esdeveniments.",
+      "energy": "{value} carregats",
+      "external": {
+        "disconnect": "Vehicle desconnectat, ajustos restablerts des de fora",
+        "resume": "Carrega sempre activat des de fora",
+        "start": "Carrega sempre activat des de fora",
+        "stop": "Carrega sempre desactivat des de fora"
+      },
+      "pv": "solar mitjana {value}, llindar {threshold}",
+      "resetAlways": "Carrega sempre desactivat",
+      "resetMode": "mode Ràpid a Intel·ligent",
+      "rule": {
+        "endOfDay": "final del dia",
+        "manualOff": "desactivat manualment",
+        "power": "poca potència solar",
+        "share": "poc percentatge solar",
+        "sunLow": "poca solar"
+      },
+      "shadow": {
+        "disconnect": "Restabliria els ajustos en desconnectar",
+        "resume": "Reprendria la càrrega en connectar",
+        "start": "Iniciaria la càrrega",
+        "stop": "Aturaria la càrrega"
+      },
+      "solarPercentage": "{value} solar",
+      "surplus": "excedent mitjà {value}, llindar {threshold}",
+      "title": "Historial",
+      "type": {
+        "disconnect": "Vehicle desconnectat, ajustos restablerts",
+        "resume": "Càrrega represa en connectar",
+        "start": "Càrrega iniciada",
+        "stop": "Càrrega aturada"
+      }
+    },
+    "mode": {
+      "active": "Actiu",
+      "off": "Apagat",
+      "shadow": "Simulació"
+    },
+    "params": {
+      "baseHomeLoad": {
+        "help": "Se suma al llindar d’aturada. La càrrega s’atura quan la solar mitjana es queda per sota de la suma.",
+        "label": "Consum base"
+      },
+      "equals": "equival a {value}",
+      "equalsRange": "entre {min} i {max}",
+      "errorRange": "Interval permès: de {min} a {max}.",
+      "group": {
+        "general": "General",
+        "simple": "Simple",
+        "smart": "Intel·ligent"
+      },
+      "inUse": "en ús",
+      "maxStartsPerDay": {
+        "help": "Nombre màxim d’inicis automàtics al dia.",
+        "label": "Inicis per dia"
+      },
+      "minChargePower": {
+        "help": "Potència que consumeix el vehicle al corrent mínim. Base de tots els percentatges.",
+        "label": "Potència mínima de càrrega"
+      },
+      "restartCooldownMin": {
+        "help": "Temps després d’una aturada solar abans que la càrrega pugui tornar a iniciar-se.",
+        "label": "Pausa després d’aturar"
+      },
+      "simpleEndOfDayPower": {
+        "help": "S’atura quan el sol baixa i la solar mitjana de 30 minuts es queda per sota d’aquest valor durant 15 minuts.",
+        "label": "Potència de final del dia"
+      },
+      "simpleForecastShare": {
+        "help": "La previsió solar fins a la posta de sol ha de cobrir aquest percentatge de la potència mínima de càrrega.",
+        "label": "Cobertura prevista"
+      },
+      "simpleShareStop": {
+        "help": "S’atura quan el sol baixa i el percentatge solar de la càrrega es queda per sota d’aquest valor durant 10 minuts.",
+        "label": "Percentatge solar mínim"
+      },
+      "simpleStartShare": {
+        "help": "Solar mitjana de 30 minuts necessària per iniciar, en percentatge de la potència mínima de càrrega.",
+        "label": "Percentatge d’inici"
+      },
+      "simpleStopPower": {
+        "help": "S’atura quan la solar mitjana de 30 minuts es queda per sota d’aquest valor durant 10 minuts.",
+        "label": "Potència d’aturada"
+      },
+      "socHigh": {
+        "errorOrder": "Ha de ser més gran que el nivell de càrrega baix.",
+        "help": "Amb aquest nivell de càrrega o més s’aplica el percentatge d’inici alt. Entre tots dos s’interpola.",
+        "label": "Nivell de càrrega alt"
+      },
+      "socLow": {
+        "help": "Amb aquest nivell de càrrega del vehicle o menys s’aplica el percentatge d’inici baix.",
+        "label": "Nivell de càrrega baix"
+      },
+      "startHoldMin": {
+        "help": "L’excedent mitjà ha de seguir per sobre del llindar d’inici durant aquest temps.",
+        "label": "Espera per iniciar"
+      },
+      "startHourFrom": {
+        "help": "Hora a partir de la qual pot iniciar-se la càrrega.",
+        "label": "Franja d’inici des de"
+      },
+      "startHourTo": {
+        "errorOrder": "Ha de ser posterior a l’inici de la franja.",
+        "help": "Hora fins a la qual pot iniciar-se la càrrega, sense incloure-la.",
+        "label": "Franja d’inici fins a"
+      },
+      "startShareHighSoc": {
+        "help": "Excedent mitjà necessari per iniciar, en percentatge de la potència mínima de càrrega.",
+        "label": "Percentatge d’inici amb nivell alt"
+      },
+      "startShareLowSoc": {
+        "help": "Excedent mitjà necessari per iniciar, en percentatge de la potència mínima de càrrega.",
+        "label": "Percentatge d’inici amb nivell baix"
+      },
+      "stopHoldMin": {
+        "help": "La solar mitjana ha de seguir per sota del llindar d’aturada durant aquest temps.",
+        "label": "Espera per aturar"
+      },
+      "stopHysteresis": {
+        "help": "Llindar d’aturada en percentatge del llindar d’inici.",
+        "label": "Histèresi d’aturada"
+      },
+      "title": "Paràmetres",
+      "unitMinutes": "min"
+    },
+    "reason": {
+      "charging": "Carregant.",
+      "chargingStopping": "Carregant amb poca solar, s’atura en {remaining}.",
+      "chargingValues": "Carregant. Solar mitjana {value}, llindar d’aturada {threshold}.",
+      "cooldown": "Pausa després de l’última aturada, queden {remaining}.",
+      "dailyLimit": "Límit diari assolit: {count} de {max} inicis.",
+      "disabled": "El control solar està apagat.",
+      "forecastLow": "Excedent previst insuficient: {value}, llindar d’inici {threshold}.",
+      "forecastLowSimple": "Cobertura prevista insuficient: {value}, necessària {threshold}.",
+      "forecastMissing": "No hi ha previsió solar.",
+      "manualNow": "El punt de recàrrega està en Ràpid.",
+      "manualOff": "El punt de recàrrega està en Apagat.",
+      "manualOnce": "Carrega sempre està activat fins al final de la sessió.",
+      "notConnected": "No hi ha cap vehicle connectat.",
+      "outsideHours": "Fora de la franja d’inici de {from} a {to}.",
+      "ready": "Condicions complertes, iniciant.",
+      "readyIn": "Condicions complertes, s’inicia en {remaining}.",
+      "socUnknown": "Nivell de càrrega del vehicle desconegut.",
+      "surplusLow": "Excedent insuficient: {value}, llindar d’inici {threshold}.",
+      "surplusLowSimple": "Solar insuficient: {value}, llindar d’inici {threshold}.",
+      "warmup": "Recollint mesures, les mitjanes encara no són vàlides."
+    },
+    "status": {
+      "above": "per sobre del llindar",
+      "below": "per sota del llindar",
+      "cooldown": "Pausa restant",
+      "countOf": "{count} de {max}",
+      "forecastCoverage": "Cobertura prevista davant la necessària",
+      "forecastSurplus2h": "Excedent previst (2 h) davant el llindar d’inici",
+      "lastStart": "Últim inici",
+      "lastStop": "Última aturada",
+      "mode": "Mode",
+      "noData": "Encara no hi ha estat.",
+      "notValid": "encara no vàlid",
+      "pvAvg15Stop": "Solar mitjana (15 min) davant el llindar d’aturada",
+      "pvAvg30Start": "Solar mitjana (30 min) davant el llindar d’inici",
+      "pvAvg30Stop": "Solar mitjana (30 min) davant la potència d’aturada",
+      "reset": "Reinicia el comptador i la pausa",
+      "shadowWarning": "Mode simulació: les decisions només es registren. La càrrega no es controla.",
+      "soc": "Nivell de càrrega",
+      "startHold": "Inici en",
+      "startsToday": "Inicis avui",
+      "stopHold": "Aturada en",
+      "strategy": "Estratègia",
+      "sun": "Solar",
+      "sunLow": "baixa",
+      "sunOk": "suficient",
+      "surplusAvg15": "Excedent mitjà (15 min) davant el llindar d’inici",
+      "title": "Estat",
+      "unknown": "desconegut"
+    },
+    "strategy": {
+      "simple": "Simple",
+      "smart": "Intel·ligent"
+    },
+    "title": "Control solar",
+    "unavailable": "El control solar no està disponible."
+  },
   "startupError": {
     "configFile": "Fitxer de configuració utilitzat:",
     "configuration": "Configuració",
