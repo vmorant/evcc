@@ -41,7 +41,7 @@ const config: SolarControlConfig = {
 const status: SolarControlStatus = {
   mode: "shadow",
   strategy: "smart",
-  reason: { code: "ready", remaining: 420 },
+  reason: { code: "surplusLow", value: 620, threshold: 789 },
   values: {
     surplus: 1100,
     surplusAvg15: 980,
@@ -55,6 +55,15 @@ const status: SolarControlStatus = {
     forecastCoverage: 72,
     soc: 47.5,
     sunDeclining: false,
+    pv: 1650,
+    home: 550,
+    chargePower: null,
+    forecastEnergyRestOfDay: 6200,
+    sunEnd: "2026-11-13T16:12:00Z",
+    sessionEnergy: null,
+    sessionSolarPercentage: null,
+    forecastWindowStart: "2026-11-13T10:30:00Z",
+    forecastWindowEnd: "2026-11-13T13:00:00Z",
   },
   valid: { surplusAvg15: true, pvAvg15: true, pvAvg30: false, solarShareAvg15: false },
   startsToday: 1,
@@ -66,6 +75,17 @@ const status: SolarControlStatus = {
   lastStartAt: "2026-11-13T08:41:00Z",
   lastStopAt: "2026-11-13T10:11:00Z",
   events: [],
+  checks: [
+    { key: "connected", ok: true, known: true },
+    { key: "mode", ok: true, known: true },
+    { key: "hours", ok: true, known: true, value: 8, threshold: 17 },
+    { key: "surplus", ok: false, known: true, value: 620, threshold: 789 },
+    { key: "hold", ok: false, known: true },
+    { key: "forecast", ok: false, known: true, value: 640, threshold: 789 },
+    { key: "cooldown", ok: true, known: true },
+    { key: "dailyLimit", ok: true, known: true, value: 1, threshold: 2 },
+  ],
+  checksPhase: "start",
 };
 
 export const SmartShadow = Template.bind({});
@@ -78,6 +98,9 @@ SmartWarmup.args = {
     ...status,
     mode: "active",
     reason: { code: "warmup" },
+    checks: status.checks.map((c) =>
+      c.key === "surplus" ? { key: "surplus", ok: false, known: false } : c
+    ),
     valid: { surplusAvg15: false, pvAvg15: false, pvAvg30: false, solarShareAvg15: false },
     values: { ...status.values, soc: null, startThreshold: null, pvStopThreshold: null },
     startHoldRemaining: null,
@@ -94,6 +117,43 @@ SimpleCharging.args = {
     reason: { code: "charging", value: 1500 },
     valid: { surplusAvg15: true, pvAvg15: true, pvAvg30: true, solarShareAvg15: true },
     startHoldRemaining: null,
+    values: { ...status.values, chargePower: 1400, sessionEnergy: 3.2, sessionSolarPercentage: 78 },
+    checks: [
+      { key: "power", ok: true, known: true, value: 1500, threshold: 800 },
+      { key: "share", ok: true, known: true, value: 78, threshold: 35 },
+      { key: "endOfDay", ok: true, known: true, value: 1500, threshold: 690 },
+      { key: "sunDeclining", ok: true, known: true },
+    ],
+    checksPhase: "stop",
+  },
+};
+
+export const SmartStopping = Template.bind({});
+SmartStopping.args = {
+  config: { ...config, mode: "active" },
+  status: {
+    ...status,
+    mode: "active",
+    reason: { code: "charging", value: 450, threshold: 735, remaining: 420 },
+    values: { ...status.values, chargePower: 1400, sessionEnergy: 5.1, sessionSolarPercentage: 64 },
+    checks: [
+      { key: "sun", ok: false, known: true, value: 450, threshold: 735 },
+      { key: "stopHold", ok: false, known: true, remaining: 420 },
+    ],
+    checksPhase: "stop",
+  },
+};
+
+export const SmartStartDelay = Template.bind({});
+SmartStartDelay.args = {
+  config,
+  status: {
+    ...status,
+    reason: { code: "ready", remaining: 240 },
+    checks: status.checks.map((c) => {
+      if (c.key === "hold") return { ...c, remaining: 240 };
+      return { ...c, ok: true };
+    }),
   },
 };
 

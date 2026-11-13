@@ -14,7 +14,7 @@
 							<div class="input-group input-width">
 								<input
 									:id="inputId(p.key)"
-									:value="config[p.key]"
+									:value="inputValue(p.key)"
 									type="number"
 									inputmode="decimal"
 									:min="p.min"
@@ -24,7 +24,9 @@
 									:aria-invalid="errors[p.key] ? 'true' : undefined"
 									class="form-control text-end"
 									:class="{ 'is-invalid': errors[p.key] }"
+									@input="edit(p, $event)"
 									@change="commit(p, $event)"
+									@blur="leave(p)"
 								/>
 								<span
 									v-if="p.unit"
@@ -54,7 +56,6 @@ import FormRow from "../Config/FormRow.vue";
 import SavingIndicator, { type SavingState } from "../Helper/SavingIndicator.vue";
 import {
 	PARAMS,
-	paramDef,
 	parseParam,
 	shareOfMinPower,
 	smartThresholds,
@@ -62,7 +63,12 @@ import {
 	type ParamGroup,
 	type ParamUnit,
 } from "./params";
-import type { SolarControlConfig, SolarControlConfigKey } from "./types";
+import type {
+	SolarControlConfig,
+	SolarControlConfigKey,
+	SolarControlStrategy,
+	SolarControlValidationError,
+} from "./types";
 
 interface Group {
 	group: ParamGroup;
@@ -71,13 +77,17 @@ interface Group {
 	params: ParamDef[];
 }
 
+// input text that differs from the saved config while editing or after a rejected save
+interface Draft {
+	key: SolarControlConfigKey;
+	value: string;
+	saving: boolean;
+}
+
 const GROUPS: ParamGroup[] = ["general", "smart", "simple"];
 
-// cross-field rules of Config.Validate, reported on the second field
-const CROSS_FIELD: Partial<Record<SolarControlConfigKey, string>> = {
-	socHigh: "solarControl.params.socHigh.errorOrder",
-	startHourTo: "solarControl.params.startHourTo.errorOrder",
-};
+// fields of the cross-field rules of Config.Validate, each with its own message
+const ORDER_FIELDS: SolarControlConfigKey[] = ["socLow", "socHigh", "startHourFrom", "startHourTo"];
 
 export default defineComponent({
 	name: "SolarControlParamsCard",
@@ -85,23 +95,26 @@ export default defineComponent({
 	mixins: [formatter],
 	props: {
 		config: { type: Object as PropType<SolarControlConfig>, required: true },
+		strategy: { type: String as PropType<SolarControlStrategy>, required: true },
 		soc: { type: Number as PropType<number | null>, default: null },
-		errors: { type: Object as PropType<Record<string, string>>, default: () => ({}) },
+		errors: {
+			type: Object as PropType<Record<string, SolarControlValidationError>>,
+			default: () => ({}),
+		},
 		savingField: { type: String as PropType<string | null>, default: null },
 		savingState: { type: String as PropType<SavingState>, default: null },
 	},
 	emits: ["save"],
+	data() {
+		return { draft: null as Draft | null };
+	},
 	watch: {
-		errors(next: Record<string, string>, prev: Record<string, string>) {
-			// a rejected value stays in its input until the error clears, then show the saved one
-			Object.keys(prev)
-				.filter((key) => !next[key] && paramDef(key))
-				.forEach((key) => {
-					const input = document.getElementById(this.inputId(key));
-					if (input instanceof HTMLInputElement) {
-						input.value = String(this.config[key as SolarControlConfigKey]);
-					}
-				});
+		config() {
+			// saved: all inputs show the new config
+			this.draft = null;
+		},
+		savingState(state: SavingState) {
+			if (state !== "saving" && this.draft) this.draft.saving = false;
 		},
 	},
 	computed: {
@@ -109,8 +122,7 @@ export default defineComponent({
 			return GROUPS.map((group) => ({
 				group,
 				title: this.$t(`solarControl.params.group.${group}`),
-				subtitle:
-					group === this.config.strategy ? this.$t("solarControl.params.inUse") : "",
+				subtitle: group === this.strategy ? this.$t("solarControl.params.inUse") : "",
 				params: PARAMS.filter((p) => p.group === group),
 			}));
 		},
@@ -148,30 +160,47 @@ export default defineComponent({
 		unitLabel(unit: ParamUnit): string {
 			return unit === "min" ? this.$t("solarControl.params.unitMinutes") : unit;
 		},
+		inputValue(key: SolarControlConfigKey): string {
+			return this.draft?.key === key ? this.draft.value : String(this.config[key]);
+		},
 		errorText(key: SolarControlConfigKey): string | undefined {
-			const raw = this.errors[key];
-			if (!raw) return undefined;
-			const cross = CROSS_FIELD[key];
-			if (cross && raw.includes("greater than")) return this.$t(cross);
-			const def = paramDef(key);
-			if (def && raw.includes("between")) {
+			const err = this.errors[key];
+			if (!err) return undefined;
+			if (err.code === "order" && ORDER_FIELDS.includes(key)) {
+				return this.$t(`solarControl.params.${key}.errorOrder`);
+			}
+			if (err.code === "range" && err.min != null && err.max != null) {
 				return this.$t("solarControl.params.errorRange", {
-					min: this.fmtNumber(def.min),
-					max: this.fmtNumber(def.max),
+					min: this.fmtNumber(err.min),
+					max: this.fmtNumber(err.max),
 				});
 			}
-			return raw;
+			return err.error;
+		},
+		edit(p: ParamDef, event: Event) {
+			const { value } = event.target as HTMLInputElement;
+			this.draft = { key: p.key, value, saving: false };
 		},
 		commit(p: ParamDef, event: Event) {
 			const input = event.target as HTMLInputElement;
 			const value = parseParam(p, input.value);
 			if (value === null) {
+				this.draft = null;
 				input.value = String(this.config[p.key]);
 				return;
 			}
-			input.value = String(value);
-			if (value === this.config[p.key] && !this.errors[p.key]) return;
+			if (value === this.config[p.key] && !this.errors[p.key]) {
+				this.draft = null;
+				input.value = String(value);
+				return;
+			}
+			this.draft = { key: p.key, value: String(value), saving: true };
+			input.value = this.draft.value;
 			this.$emit("save", { [p.key]: value });
+		},
+		leave(p: ParamDef) {
+			// a rejected value is shown until the input is left
+			if (this.draft?.key === p.key && !this.draft.saving) this.draft = null;
 		},
 	},
 });

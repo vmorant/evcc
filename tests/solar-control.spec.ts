@@ -98,4 +98,43 @@ test.describe("solar control", async () => {
     await expect(socHigh).toHaveValue("75");
     await expect(minPower).toHaveValue("1400");
   });
+
+  test("cross-field validation", async ({ page }) => {
+    await page.goto("/#/solar");
+    const params = page.getByTestId("solar-control-params");
+    const socLow = param(page, "Low charge level");
+    const socHigh = param(page, "High charge level");
+    const minPower = param(page, "Minimum charging power");
+    const lowError = page.getByText("Must be lower than the high charge level.");
+    const highError = page.getByText("Must be greater than the low charge level.");
+
+    await socLow.fill("80");
+    await socLow.press("Tab");
+    await expect(lowError).toBeVisible();
+    await expect(highError).toBeVisible();
+    await expect(socLow).toHaveValue("80");
+    await expect(socHigh).toHaveValue("75");
+
+    await minPower.fill("1500");
+    await minPower.press("Tab");
+    await expect(params.getByText("Saved.", { exact: true })).toBeVisible();
+    await expect(socLow).toHaveValue("20");
+    await expect(lowError).toBeHidden();
+    await expect(highError).toBeHidden();
+  });
+
+  test("checks", async ({ page }) => {
+    await page.goto("/#/solar");
+    await mode(page, "Shadow").click();
+    await expect(mode(page, "Shadow")).toBeChecked();
+
+    const checks = page.getByRole("region", { name: "Start conditions" });
+    await expect(
+      checks.getByRole("listitem").filter({ hasText: "Vehicle connected" })
+    ).toContainText("not met");
+    await expect(page.getByTestId("solar-control-verdict")).toHaveText(
+      "Starts once a vehicle is connected."
+    );
+    await expect(page.getByText("How it works")).toBeVisible();
+  });
 });

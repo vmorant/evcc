@@ -17,6 +17,7 @@
 					<ParamsCard
 						class="mb-4 box-pull-out"
 						:config="config"
+						:strategy="strategy"
 						:soc="soc"
 						:errors="errors"
 						:saving-field="savingField"
@@ -82,7 +83,8 @@ export default defineComponent({
 			// a POST response is newer than the last websocket status until the next cycle
 			preferFetched: false,
 			loadError: false,
-			errors: {} as Record<string, string>,
+			// keyed by field, a cross-field error is shown on the reported and on the edited field
+			errors: {} as Record<string, SolarControlValidationError>,
 			savingField: null as string | null,
 			savingState: null as SavingState,
 			// update rejected for missing login, sent again after login
@@ -96,6 +98,9 @@ export default defineComponent({
 		status(): SolarControlStatus | null {
 			if (this.preferFetched || !this.liveStatus) return this.fetchedStatus;
 			return this.liveStatus;
+		},
+		strategy(): SolarControlStrategy {
+			return this.status?.strategy ?? this.config?.strategy ?? "smart";
 		},
 		soc(): number | null {
 			return this.status?.values.soc ?? null;
@@ -159,8 +164,10 @@ export default defineComponent({
 					{ validateStatus: (s) => (s >= 200 && s < 300) || s === 400 }
 				);
 				if (res.status === 400) {
-					const { field: errField, error } = res.data as SolarControlValidationError;
-					this.errors = { [errField || field || "mode"]: error };
+					const err = res.data as SolarControlValidationError;
+					const reported = err.field || field || "mode";
+					this.errors = { [reported]: err };
+					if (field) this.errors[field] = err;
 					this.savingState = null;
 					return;
 				}

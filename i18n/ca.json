@@ -2145,6 +2145,41 @@
       "description": "El control solar activarà i desactivarà Carrega sempre per si mateix. Desactiveu abans les automatitzacions de càrrega solar de Home Assistant; si no, tots dos controlaran la càrrega alhora.",
       "title": "Voleu activar el control solar?"
     },
+    "check": {
+      "left": "queden {remaining}",
+      "missing": "falten {value}",
+      "notValid": "encara no vàlid",
+      "start": {
+        "connected": "Vehicle connectat",
+        "cooldown": "Pausa després d’aturar",
+        "dailyLimit": "Inicis avui",
+        "forecast": "Excedent previst (2 h)",
+        "forecastSimple": "Cobertura prevista fins a la posta de sol",
+        "hold": "Estable durant {min} min",
+        "hours": "Franja d’inici",
+        "mode": "Punt de recàrrega en mode Intel·ligent",
+        "sun": "Solar mitjana (30 min)",
+        "surplus": "Excedent mitjà (15 min)"
+      },
+      "state": {
+        "fail": "no complerta",
+        "ok": "complerta",
+        "unknown": "desconeguda"
+      },
+      "stop": {
+        "endOfDay": "Solar mitjana (30 min) per sobre de la potència de final del dia",
+        "power": "Solar mitjana (30 min) per sobre de la potència d’aturada",
+        "share": "Percentatge solar per sobre del mínim",
+        "stopHold": "Cap aturada pendent",
+        "sun": "Prou sol (mitjana de 15 min)",
+        "sunDeclining": "El sol encara no baixa"
+      },
+      "stopsIn": "s’atura en {remaining}",
+      "title": {
+        "start": "Condicions d’inici",
+        "stop": "Condicions per continuar carregant"
+      }
+    },
     "history": {
       "empty": "Encara no hi ha esdeveniments.",
       "energy": "{value} carregats",
@@ -2179,6 +2214,26 @@
         "start": "Càrrega iniciada",
         "stop": "Càrrega aturada"
       }
+    },
+    "howItWorks": {
+      "simple": {
+        "endOfDay": "Solar mitjana (30 min) per sota de {value} durant 15 min mentre el sol baixa.",
+        "power": "Solar mitjana (30 min) per sota de {value} durant 10 min.",
+        "share": "Percentatge solar de la càrrega per sota de {value} durant 10 min mentre el sol baixa.",
+        "start": "Inici (activa Carrega sempre): solar mitjana (30 min) per sobre de {start} i la previsió fins a la posta de sol cobreix el {coverage} de la potència mínima de càrrega, pausa després d’aturar complerta.",
+        "stop": "S’atura tan bon punt es compleix una d’aquestes regles.",
+        "summary": "S’inicia amb prou solar mitjana, s’atura amb poca solar."
+      },
+      "smart": {
+        "forecast": "L’excedent previst (2 h) és la mitjana de la previsió solar d’aquesta hora i la següent menys el consum actual. Per iniciar calen tots dos, excedent ara i excedent per endavant, així una clariana passatgera entre els núvols no inicia la càrrega.",
+        "grid": "Carrega sempre carrega com a mínim a la potència mínima de càrrega ({minPower}). Amb {start} d’excedent això és aproximadament un {share} solar, la resta ve de la xarxa.",
+        "now": "Ara (nivell de càrrega {soc}): inici amb {start} d’excedent, aturada per sota de {stop} de solar, histèresi {hysteresis}, pausa {cooldown} min, fins a {max} inicis al dia.",
+        "start": "Inici (activa Carrega sempre): excedent mitjà (solar menys consum, 15 min) d’almenys {start} durant {hold} min i excedent previst (2 h) d’almenys {start}, pausa després d’aturar complerta, menys de {max} inicis avui, entre les {from} i les {to}.",
+        "stop": "Aturada: solar mitjana (15 min) per sota de {stop} durant {stopHold} min, llindar d’aturada = llindar d’inici × histèresi + consum base. Mira la producció, no l’excedent: el forn o la placa no aturen la càrrega, només els núvols o la posta de sol.",
+        "summary": "S’inicia amb excedent, s’atura per manca de sol.",
+        "threshold": "El llindar d’inici depèn del nivell de càrrega: potència mínima de càrrega × percentatge d’inici, interpolat entre el nivell de càrrega baix i l’alt. Amb més nivell de càrrega cal més excedent."
+      },
+      "title": "Com funciona"
     },
     "mode": {
       "active": "Actiu",
@@ -2237,6 +2292,7 @@
         "label": "Nivell de càrrega alt"
       },
       "socLow": {
+        "errorOrder": "Ha de ser més petit que el nivell de càrrega alt.",
         "help": "Amb aquest nivell de càrrega del vehicle o menys s’aplica el percentatge d’inici baix.",
         "label": "Nivell de càrrega baix"
       },
@@ -2245,6 +2301,7 @@
         "label": "Espera per iniciar"
       },
       "startHourFrom": {
+        "errorOrder": "Ha de ser anterior al final de la franja.",
         "help": "Hora a partir de la qual pot iniciar-se la càrrega.",
         "label": "Franja d’inici des de"
       },
@@ -2287,48 +2344,52 @@
       "manualOnce": "Carrega sempre està activat fins al final de la sessió.",
       "notConnected": "No hi ha cap vehicle connectat.",
       "outsideHours": "Fora de la franja d’inici de {from} a {to}.",
-      "ready": "Condicions complertes, iniciant.",
       "readyIn": "Condicions complertes, s’inicia en {remaining}.",
+      "readyNow": "Condicions complertes, iniciant ara.",
       "socUnknown": "Nivell de càrrega del vehicle desconegut.",
       "surplusLow": "Excedent insuficient: {value}, llindar d’inici {threshold}.",
       "surplusLowSimple": "Solar insuficient: {value}, llindar d’inici {threshold}.",
       "warmup": "Recollint mesures, les mitjanes encara no són vàlides."
     },
     "status": {
-      "above": "per sobre del llindar",
-      "below": "per sota del llindar",
-      "cooldown": "Pausa restant",
+      "chargePower": "Potència de càrrega",
       "countOf": "{count} de {max}",
-      "forecastCoverage": "Cobertura prevista davant la necessària",
-      "forecastSurplus2h": "Excedent previst (2 h) davant el llindar d’inici",
-      "lastStart": "Últim inici",
-      "lastStop": "Última aturada",
+      "forecastRestOfDay": "Previsió solar resta del dia",
+      "forecastWindow": "Franja d’inici prevista",
+      "homeNow": "Consum ara",
       "mode": "Mode",
       "noData": "Encara no hi ha estat.",
-      "notValid": "encara no vàlid",
-      "pvAvg15Stop": "Solar mitjana (15 min) davant el llindar d’aturada",
-      "pvAvg30Start": "Solar mitjana (30 min) davant el llindar d’inici",
-      "pvAvg30Stop": "Solar mitjana (30 min) davant la potència d’aturada",
+      "pvNow": "Solar ara",
       "reset": "Reinicia el comptador i la pausa",
+      "session": "Sessió",
       "shadowWarning": "Mode simulació: les decisions només es registren. La càrrega no es controla.",
       "soc": "Nivell de càrrega",
-      "startHold": "Inici en",
-      "startsToday": "Inicis avui",
-      "stopHold": "Aturada en",
       "strategy": "Estratègia",
-      "sun": "Solar",
-      "sunLow": "baixa",
-      "sunOk": "suficient",
-      "surplusAvg15": "Excedent mitjà (15 min) davant el llindar d’inici",
-      "title": "Estat",
-      "unknown": "desconegut"
+      "sunEnd": "Sol fins a",
+      "surplusNow": "Excedent ara",
+      "title": "Estat"
     },
     "strategy": {
       "simple": "Simple",
       "smart": "Intel·ligent"
     },
     "title": "Control solar",
-    "unavailable": "El control solar no està disponible."
+    "unavailable": "El control solar no està disponible.",
+    "verdict": {
+      "chargingSimple": "Carregant, s’atura si la solar mitjana es queda per sota de {stop} durant {min} min.",
+      "chargingSmart": "Carregant, s’atura si la solar es queda per sota de {stop} durant {min} min.",
+      "connect": "S’iniciarà quan es connecti un vehicle.",
+      "cooldown": "Podrà tornar a iniciar-se d’aquí a {remaining} com a mínim.",
+      "dailyLimit": "Avui no hi haurà més inicis.",
+      "forecastFrom": "Previsió: prou sol a partir de les {time}.",
+      "forecastNone": "La previsió no arriba al llindar la resta del dia.",
+      "forecastUntil": "Previsió: prou sol fins a les {time}.",
+      "hold": "S’inicia en uns {remaining} si l’excedent es manté.",
+      "hours": "Proper inici possible a les {from}.",
+      "mode": "No s’iniciarà fins que el punt de recàrrega torni al mode Intel·ligent.",
+      "stopping": "S’atura en {remaining} si la solar no es recupera.",
+      "unknown": "Esperant mitjanes vàlides."
+    }
   },
   "startupError": {
     "configFile": "Fitxer de configuració utilitzat:",
